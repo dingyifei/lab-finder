@@ -470,7 +470,7 @@ Week 6:
 
 ### Epic 5 & 6: Publications & LinkedIn (Sprint 4 - Week 7-8, PARALLEL)
 
-**Stories:** 5.1-5.5, 6.1-6.5
+**Stories:** 5.1-5.5, 6.1-6.3 (Epic 6 reduced from 5 to 3 stories)
 **Dependencies:** Epic 4 complete
 **Note:** These epics can be developed in parallel by different developers
 
@@ -491,12 +491,10 @@ Week 8:
 ```
 Week 7:
 - Story 6.1: mcp-linkedin Integration (Day 1-2)
-- Story 6.2: Parallel Matching (Day 3)
-- Story 6.3: Profile Matching (Day 4-5)
+- Story 6.2: Profile Matching (Day 3-4, formerly 6.3)
 
 Week 8:
-- Story 6.4: PhD Detection (Day 1-2)
-- Story 6.5: Error Handling (Day 3)
+- Story 6.3: PhD Detection (Day 1-2, formerly 6.4)
 - Testing (Day 4-5)
 ```
 

@@ -22,13 +22,13 @@ This index provides a complete catalog of all user stories for the Lab Finder pr
 | Metric | Count |
 |--------|-------|
 | **Total Epics** | 8 |
-| **Total Stories** | 44 |
+| **Total Stories** | 42 |
 | **Epic 1 (Foundation)** | 9 stories |
 | **Epic 2 (University Discovery)** | 5 stories |
 | **Epic 3 (Professor Discovery)** | 5 stories |
 | **Epic 4 (Lab Intelligence)** | 5 stories |
 | **Epic 5 (Publication Research)** | 5 stories |
-| **Epic 6 (LinkedIn Integration)** | 5 stories |
+| **Epic 6 (LinkedIn Integration)** | 3 stories |
 | **Epic 7 (Fitness Scoring)** | 5 stories |
 | **Epic 8 (Report Generation)** | 5 stories |
 
@@ -170,16 +170,14 @@ Epic 8 (Report Generation) → Depends on Epic 7 (final epic)
 **Goal:** Match lab members to LinkedIn profiles via mcp-linkedin MCP server, detect graduating PhDs.
 
 **Status:** Ready for Development (Validated - uses mcp-linkedin MCP)
-**Story Count:** 5
+**Story Count:** 3 (reduced from 5: removed 6.2 Parallel Access, 6.5 Error Handling - SDK handles these)
 **Dependencies:** Epic 4
 
 | Story | Title | Key Deliverables | Dependencies |
 |-------|-------|------------------|--------------|
-| **6.1** | mcp-linkedin MCP Server Integration | LinkedIn MCP integration, connection handling | 4.1, 1.5 |
-| **6.2** | Parallel LinkedIn Profile Matching | Parallel MCP access, async processing | 6.1 |
-| **6.3** | LinkedIn Profile Matching with Confidence Scores | LabMember model, LLM matching, confidence scores | 6.1, 1.7 |
-| **6.4** | PhD Graduation & Departure Detection | Graduation detection, position availability signals | 6.3 |
-| **6.5** | LinkedIn Error Handling & Logging | MCP error handling, graceful degradation | 6.1 |
+| **6.1** | mcp-linkedin MCP Server Integration | LinkedIn MCP integration, connection handling, error handling, data quality flags | 4.1, 1.5 |
+| **6.2** | LinkedIn Profile Matching with Confidence Scores | LabMember model, LLM matching, confidence scores | 6.1, 1.7 |
+| **6.3** | PhD Graduation & Departure Detection | Graduation detection, position availability signals | 6.2 |
 
 **Output:** Updated `checkpoints/phase-3-labs-batch-*.jsonl` (with LinkedIn data)
 
@@ -272,11 +270,11 @@ Epic 5: Publication Research (PARALLEL with Epic 6)
 └── 5.5 (depends on 5.1, 4.4)
 
 Epic 6: LinkedIn Integration (PARALLEL with Epic 5)
-├── 6.1 (depends on 4.1, 1.5)
-├── 6.2 (depends on 6.1)
-├── 6.3 (depends on 6.1, 1.7)
-├── 6.4 (depends on 6.3)
-└── 6.5 (depends on 6.1)
+├── 6.1 (depends on 4.1, 1.5) [includes error handling from removed 6.5]
+├── 6.2 (depends on 6.1, 1.7) [formerly 6.3]
+└── 6.3 (depends on 6.2) [formerly 6.4]
+
+Note: Stories 6.2 (Parallel Access) and 6.5 (Error Handling) removed - functionality handled by Claude Agent SDK and merged into 6.1
 
 Epic 7: Fitness Scoring
 ├── 7.1 (depends on 5.1)
@@ -351,7 +349,7 @@ All user stories located in: `docs/stories/`
 - `1.1.project-setup.md`
 - `1.8.ci-cd-pipeline-setup.md` (optional)
 - `2.3.department-relevance-filtering.md`
-- `6.3.linkedin-profile-matching.md`
+- `6.2.linkedin-profile-matching.md` (formerly 6.3)
 
 ---
 
@@ -453,8 +451,9 @@ All 44 stories have status: **Draft** (ready for development)
 - **Deliverable:** Lab data with website intelligence
 
 ### Sprint 4: Publications & LinkedIn (2 weeks, parallel)
-- Stories 5.1-5.5, 6.1-6.5 (Epics 5-6 complete, parallel execution)
+- Stories 5.1-5.5, 6.1-6.3 (Epics 5-6 complete, parallel execution)
 - **Deliverable:** Publication data + LinkedIn matching
+- **Note:** Epic 6 reduced from 5 to 3 stories (6.2, 6.5 removed - SDK handles parallel execution and error handling)
 
 ### Sprint 5: Scoring & Reporting (2 weeks)
 - Stories 7.1-7.5, 8.1-8.5 (Epics 7-8 complete)

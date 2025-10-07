@@ -49,7 +49,7 @@ Markdown Reports Output
 | **Phased pipeline vs. reactive event-driven** | Sequential phases with checkpointing enable resumability; clear progression tracking |
 | **File-based persistence vs. database** | One-off execution doesn't justify database overhead; JSONL checkpoints sufficient |
 | **Batch parallelism vs. unlimited concurrency** | Rate limiting compliance; prevents resource exhaustion; respects web scraping ethics |
-| **Single shared Playwright session** | Minimizes LinkedIn ban risk; reduces authentication overhead |
+| **MCP server integration for LinkedIn** | Delegates authentication and rate limiting to mcp-linkedin MCP server; simplifies application architecture |
 | **Built-in web tools with Playwright fallback** | Leverages Claude Agent SDK capabilities; Playwright handles authentication edge cases |
 
 ## High Level Project Diagram

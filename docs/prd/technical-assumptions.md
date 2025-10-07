@@ -41,7 +41,7 @@
 
 **Concurrency & Performance:**
 - Multi-agent architecture with configurable batch processing (NFR2, NFR4)
-- Shared Playwright session with queue for LinkedIn (NFR16)
+- MCP server integration for LinkedIn access with SDK-managed rate limiting (NFR16, NFR11)
 - Configurable rate limiting per source (NFR11)
 - Parallel department/professor discovery where possible
 

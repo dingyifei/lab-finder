@@ -192,7 +192,7 @@ The system consolidates a user's academic profile (resume, degree program, resea
 
 **Concurrency & Performance:**
 - Multi-agent architecture with configurable batch processing (NFR2, NFR4)
-- Shared Playwright session with queue for LinkedIn (NFR16)
+- MCP server integration for LinkedIn access with SDK-managed rate limiting (NFR16, NFR11)
 - Configurable rate limiting per source (NFR11)
 - Parallel department/professor discovery where possible
 
@@ -685,22 +685,26 @@ so that **I still get comprehensive lab intelligence**.
 
 **Goal:** Implement shared Playwright browser session with subagent queuing for LinkedIn access, match lab members to LinkedIn profiles with confidence scoring, and detect graduating or recently departed PhDs based on entry year and configurable graduation duration. This epic delivers position availability intelligence.
 
-#### Story 6.1: Shared Playwright Session Management
+#### Story 6.1: mcp-linkedin MCP Server Integration
 
 As a **user**,
-I want **a single LinkedIn browser session shared across subagents**,
-so that **I avoid repeated logins and minimize account ban risk**.
+I want **lab members matched to LinkedIn profiles via mcp-linkedin MCP server**,
+so that **I can access LinkedIn data without managing browser sessions or authentication manually**.
 
 **Acceptance Criteria:**
-1. Single Playwright browser instance created at startup (NFR16)
-2. LinkedIn authentication performed once using stored credentials (FR2)
-3. Session maintained throughout execution
-4. Session validated periodically (not expired)
-5. Graceful handling if session expires mid-execution
-6. Browser session properly closed on shutdown
-7. No parallel LinkedIn accesses (enforced by queue)
+1. mcp-linkedin MCP server configured in Claude Agent SDK (NFR16)
+2. LinkedIn authentication managed by MCP server (not application code)
+3. Search people and get profile tools available
+4. Session managed by MCP server automatically
+5. Graceful handling if MCP server unavailable (NFR13)
+6. Rate limiting managed by MCP server internally (NFR11)
+7. Progress tracking for LinkedIn operations (NFR17)
+8. Missing LinkedIn data handled gracefully (NFR13)
+9. Profile access failures logged appropriately (NFR17)
+10. Analysis continues with partial LinkedIn data if needed
+11. Error summary generated with match statistics
 
-#### Story 6.2: Subagent Queue for LinkedIn Access
+#### ~~Story 6.2: Subagent Queue for LinkedIn Access~~ [REMOVED - SDK handles this]
 
 As a **user**,
 I want **subagents to queue for LinkedIn access**,
@@ -715,7 +719,7 @@ so that **only one agent uses the session at a time, preventing conflicts and ra
 6. Timeouts prevent queue from stalling
 7. Failed requests don't block queue
 
-#### Story 6.3: LinkedIn Profile Matching with Confidence Scores
+#### Story 6.2: LinkedIn Profile Matching with Confidence Scores (formerly 6.3)
 
 As a **user**,
 I want **lab members matched to LinkedIn profiles with confidence scores**,
@@ -730,7 +734,7 @@ so that **I can assess match reliability and avoid false positives**.
 6. Low-confidence matches flagged for user review
 7. No match found handled gracefully (not all members have LinkedIn)
 
-#### Story 6.4: PhD Graduation & Departure Detection
+#### Story 6.3: PhD Graduation & Departure Detection (formerly 6.4)
 
 As a **user**,
 I want **graduating and recently departed PhD students identified**,
@@ -745,7 +749,7 @@ so that **I can target labs with upcoming position openings**.
 6. Timeline uncertainty acknowledged (some variation in graduation timing)
 7. Position availability signals saved for fitness scoring
 
-#### Story 6.5: LinkedIn Error Handling & Logging
+#### ~~Story 6.5: LinkedIn Error Handling & Logging~~ [REMOVED - merged into 6.1]
 
 As a **user**,
 I want **LinkedIn access failures logged and handled gracefully**,
@@ -1101,11 +1105,11 @@ If pursuing future enhancements, recommended priority order:
 
 **Areas for Architect Investigation:**
 1. Claude Agent SDK multi-agent orchestration implementation patterns
-2. Playwright session persistence and queue mechanism design
+2. ~~Playwright session persistence and queue mechanism design~~ **RESOLVED:** Use mcp-linkedin MCP server (see ARCHITECTURE-ERRATA Issue #3)
 3. Optimal batch sizes for different university scales
 4. JSON schema definitions for configuration files
 5. Checkpoint/resume mechanism technical design
-6. LinkedIn session management to minimize ban risk
+6. ~~LinkedIn session management to minimize ban risk~~ **RESOLVED:** Delegated to mcp-linkedin MCP server
 
 ---
 

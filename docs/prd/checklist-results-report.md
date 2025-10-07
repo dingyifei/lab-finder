@@ -61,11 +61,11 @@
 
 **Areas for Architect Investigation:**
 1. Claude Agent SDK multi-agent orchestration implementation patterns
-2. Playwright session persistence and queue mechanism design
+2. ~~Playwright session persistence and queue mechanism design~~ **RESOLVED:** Use mcp-linkedin MCP server (see ARCHITECTURE-ERRATA Issue #3)
 3. Optimal batch sizes for different university scales
 4. JSON schema definitions for configuration files
 5. Checkpoint/resume mechanism technical design
-6. LinkedIn session management to minimize ban risk
+6. ~~LinkedIn session management to minimize ban risk~~ **RESOLVED:** Delegated to mcp-linkedin MCP server
 
 ---
 
