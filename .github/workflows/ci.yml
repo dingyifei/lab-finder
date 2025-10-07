@@ -106,7 +106,7 @@ jobs:
           fail_ci_if_error: false
 
       - name: Upload test results on failure
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: unit-test-results
@@ -157,7 +157,7 @@ jobs:
           CI: true  # Flag to enable MCP mocking in tests
 
       - name: Upload test results on failure
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: integration-test-results

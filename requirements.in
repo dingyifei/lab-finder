@@ -64,3 +64,9 @@ types-jsonschema  # Type stubs for jsonschema (version auto-selected by pip-comp
 # Build & Dependency Management
 # ============================================================================
 pip-tools==7.5.1
+
+# ============================================================================
+# Platform-Specific Dependencies
+# ============================================================================
+# pywin32 is required by mcp on Windows only - exclude from Linux CI
+pywin32==311; sys_platform == 'win32'

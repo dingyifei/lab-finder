@@ -220,8 +220,10 @@ python-multipart==0.0.20
     # via mcp
 pytz==2025.2
     # via pandas
-pywin32==311
-    # via mcp
+pywin32==311 ; sys_platform == "win32"
+    # via
+    #   -r requirements.in
+    #   mcp
 pyyaml==6.0.3
     # via jsonschema-path
 referencing==0.36.2
