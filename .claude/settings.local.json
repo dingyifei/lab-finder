@@ -1,10 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Read(//c/Users/yifei/.claude/**)",
-      "mcp__context7__resolve-library-id",
-      "mcp__context7__get-library-docs",
-      "WebSearch"
+      "Bash(dir C:UsersyifeiDocumentsResearchdocs)",
+      "Bash(md-tree explode:*)",
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(python3.11:*)",
+      "Bash(py:*)",
+      "Bash(venv/Scripts/python.exe:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(venv/Scripts/pip-compile:*)",
+      "Bash(mv:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []

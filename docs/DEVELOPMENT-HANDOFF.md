@@ -20,7 +20,7 @@ This document provides comprehensive guidance for implementing the Lab Finder pr
 
 **Critical Success Factors:**
 1. Complete Epic 1 (Foundation) first - all other epics depend on it
-2. Story 1.7 (Shared Utilities) is the most critical dependency
+2. Story 1.4 (Shared Utilities) is the most critical dependency
 3. Follow checkpoint patterns consistently for resumability
 4. Use mcp-linkedin MCP server for Epic 6 (NOT Playwright queue)
 
@@ -376,7 +376,7 @@ Story X.Y - Title
 ### Epic 1: Foundation (Sprint 1 - Week 1-2)
 
 **Stories:** 1.1-1.7
-**Critical Path:** Story 1.7 must complete before any Epic 2+ work begins
+**Critical Path:** Story 1.4 must complete before any Epic 2+ work begins
 
 **Implementation Order:**
 ```
@@ -387,19 +387,19 @@ Week 1:
 - Story 1.5: MCP Server Setup (Day 4-5, parallel with 1.6)
 
 Week 2:
-- Story 1.7: Shared Utilities (Day 1-3) ★ CRITICAL
+- Story 1.4: Shared Utilities (Day 1-3) ★ CRITICAL
   - checkpoint_manager.py
   - llm_helpers.py
   - progress_tracker.py
   - logger.py
 - Story 1.3: Credential Management (Day 4)
-- Story 1.4: User Profile Consolidation (Day 5)
+- Story 1.7: User Profile Consolidation (Day 5)
 ```
 
 **Deliverable:** Working foundation with all shared utilities tested and ready
 
 **Acceptance Criteria:**
-- ✅ All Story 1.7 utilities implemented and tested
+- ✅ All Story 1.4 utilities implemented and tested
 - ✅ pytest infrastructure working
 - ✅ MCP servers connected and tested
 - ✅ Type checking (mypy) passes
@@ -408,7 +408,7 @@ Week 2:
 ### Epic 2: University Discovery (Sprint 2 - Week 3-4, Part 1)
 
 **Stories:** 2.1-2.5
-**Dependencies:** Epic 1 complete (especially Story 1.7)
+**Dependencies:** Epic 1 complete (especially Story 1.4)
 
 **Implementation Order:**
 ```
@@ -985,7 +985,7 @@ When reviewing PRs:
 
 **Architecture Alignment:**
 - [ ] Follows phased pipeline architecture
-- [ ] Uses shared utilities from Story 1.7
+- [ ] Uses shared utilities from Story 1.4
 - [ ] Checkpoint save/load implemented correctly
 - [ ] Progress tracking integrated
 
@@ -1095,7 +1095,7 @@ Error: 429 Too Many Requests
 **Development Notes:**
 - Every story has a "Dev Notes" section with architecture references
 - Every story has testing requirements and examples
-- Refer to Story 1.7 for shared utilities documentation
+- Refer to Story 1.4 for shared utilities documentation
 
 ---
 

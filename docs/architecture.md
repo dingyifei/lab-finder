@@ -18,6 +18,8 @@ This is a CLI-only tool with no graphical user interface. All user interaction o
 | Date | Version | Description | Author |
 |------|---------|-------------|--------|
 | 2025-10-06 | 0.1 | Initial architecture draft | Winston (architect) |
+| 2025-10-06 | 0.2 | SDK validation updates: Added AgentDefinition implementations, web scraping decision tree, implementation patterns, and risk assessment | Winston (architect) |
+| 2025-10-06 | 0.3 | Parallel execution optimization: Split Epic 5 into 5A/5B for concurrent execution with Epic 4, added convergence validation pattern, updated mermaid diagram | Sarah (PO) |
 
 ## High Level Architecture
 
@@ -37,8 +39,9 @@ This architecture directly supports the PRD goals of systematic lab discovery wi
 
 **1. Main Architecture Pattern:**
 - **Monolithic Application** (not microservices) - single Python process with multi-agent orchestration
-- **Phased Pipeline** - 6 distinct phases executing sequentially, each with internal parallelism
+- **Phased Pipeline** - 7 distinct phases (6 sequential + 1 parallel) with checkpoint-based resumability
 - **Agent Delegation Model** - coordinator agent spawns specialized sub-agents per phase
+- **Parallel Execution Optimization** - Phase 4 (Lab Websites) and Phase 5A (PI Publications) execute concurrently for 15-20% timeline reduction
 
 **2. Repository Structure:**
 - **Monorepo** (confirmed in PRD Technical Assumptions)
@@ -52,10 +55,15 @@ This architecture directly supports the PRD goals of systematic lab discovery wi
 **4. Primary Interaction Flow:**
 ```
 User → CLI Input (config files) → Validation Phase →
-University Discovery → Professor Filtering → Lab Research →
-Advanced Analysis → Fitness Scoring → Report Generation →
+University Discovery → Professor Filtering →
+    ├─→ Lab Websites (Phase 4) ──┐
+    └─→ PI Publications (Phase 5A) ─┘→ Convergence →
+Lab Member Publications (Phase 5B) → LinkedIn Matching →
+Authorship Analysis → Fitness Scoring → Report Generation →
 Markdown Reports Output
 ```
+
+**Note:** Phase 4 and Phase 5A execute in parallel to reduce overall timeline by 15-20%.
 
 **5. Key Architectural Decisions:**
 
@@ -90,20 +98,33 @@ graph TB
         ProfFilter[Professor Filter + Scorer]
     end
 
-    subgraph "Phase 3: Lab Research"
+    subgraph "Phase 4: Lab Website Intelligence (Parallel)"
         WebAgent[Lab Website Scrapers]
-        PubAgent[Publication Retrieval Agents]
+        ArchiveAgent[Archive.org Integration]
         ContactExt[Contact Extractor]
     end
 
-    subgraph "Phase 4: Advanced Analysis"
-        LinkedInQ[LinkedIn Queue Manager]
-        LinkedInAgent[LinkedIn Matcher Agents]
-        AuthorAnalyzer[Authorship Analyzer]
+    subgraph "Phase 5A: PI Publications (Parallel with Phase 4)"
+        PubAgent[Publication Retrieval Agents]
+        AbstractAnalyzer[Abstract Analyzer]
+        JournalWeighter[Journal Reputation Weighter]
     end
 
-    subgraph "Phase 5: Scoring & Reports"
+    subgraph "Phase 5B: Lab Member Publications (After Convergence)"
+        MemberPubAgent[Member Publication Discovery]
+        MemberInference[Co-Authorship Inference]
+    end
+
+    subgraph "Phase 6: LinkedIn Integration"
+        LinkedInAgent[LinkedIn Matcher Agents]
+    end
+
+    subgraph "Phase 7: Analysis & Scoring"
+        AuthorAnalyzer[Authorship Analyzer]
         FitnessScorer[Fitness Scoring Engine]
+    end
+
+    subgraph "Phase 8: Report Generation"
         ReportGen[Report Generator]
     end
 
@@ -127,31 +148,54 @@ graph TB
     StructAgent --> DeptFilter
     DeptFilter --> ProfAgent
     ProfAgent --> ProfFilter
+
+    %% Parallel Execution: Phase 4 and Phase 5A
     ProfFilter --> WebAgent
+    ProfFilter --> PubAgent
 
     WebAgent --> Archive
-    WebAgent --> ContactExt
+    WebAgent --> ArchiveAgent
+    ArchiveAgent --> ContactExt
+
     PubAgent --> PaperMCP
+    PubAgent --> AbstractAnalyzer
+    AbstractAnalyzer --> JournalWeighter
 
-    ContactExt --> LinkedInQ
-    LinkedInQ --> LinkedInAgent
+    %% Convergence Point: Both Phase 4 and 5A must complete
+    ContactExt --> MemberPubAgent
+    JournalWeighter --> MemberPubAgent
+
+    MemberPubAgent --> MemberInference
+    MemberInference --> LinkedInAgent
     LinkedInAgent --> LinkedIn
-    LinkedInAgent --> AuthorAnalyzer
 
+    LinkedInAgent --> AuthorAnalyzer
     AuthorAnalyzer --> FitnessScorer
     FitnessScorer --> ReportGen
     ReportGen --> Reports
 
+    %% Checkpoints
     Profile -.Checkpoint.-> Checkpoints
     DeptFilter -.Checkpoint.-> Checkpoints
     ProfFilter -.Checkpoint.-> Checkpoints
-    ContactExt -.Checkpoint.-> Checkpoints
+    ContactExt -.Checkpoint (Phase 4).-> Checkpoints
+    JournalWeighter -.Checkpoint (Phase 5A).-> Checkpoints
+    MemberInference -.Checkpoint (Phase 5B).-> Checkpoints
+    LinkedInAgent -.Checkpoint.-> Checkpoints
     AuthorAnalyzer -.Checkpoint.-> Checkpoints
 ```
 
 ### Architectural and Design Patterns
 
 **1. Multi-Agent Orchestration Pattern: Hierarchical Coordinator with Batch Delegation**
+
+✅ **VALIDATED by Claude Agent SDK AgentDefinition**
+
+**SDK Implementation:**
+- Use `AgentDefinition` to create specialized agents per phase
+- SDK handles parallel subagent execution automatically
+- Coordinator manages phase progression via `ClaudeAgentOptions`
+- Agents have isolated contexts (checkpoint-based state passing required)
 
 **Options Considered:**
 - **Option A:** Flat agent pool with work queue (all agents equal, pull tasks from queue)
@@ -161,11 +205,12 @@ graph TB
 **Recommendation:** **Option B - Hierarchical Coordinator**
 
 **Rationale:**
-- Aligns with Claude Agent SDK's delegation model
-- Clear phase progression tracking (user can see "Phase 2 of 6 complete")
-- Enables checkpoint isolation (each phase produces verifiable output)
-- Simplifies error handling (phase-level retry vs. per-agent recovery)
-- Supports the PRD's explicit phased structure (Epics 1-8 map to phases)
+- ✅ Direct SDK support via AgentDefinition
+- ✅ Parallel execution built into SDK
+- ✅ Clear phase progression tracking (user can see "Phase 2 of 6 complete")
+- ✅ Checkpoint isolation aligns with agent context isolation
+- ✅ Simplifies error handling (phase-level retry vs. per-agent recovery)
+- ✅ Supports the PRD's explicit phased structure (Epics 1-8 map to phases)
 
 ---
 
@@ -183,9 +228,15 @@ graph TB
 
 ---
 
-**3. Concurrency Pattern: Bounded Parallel Batches with Sequential Phase Execution**
+**3. Concurrency Pattern: Bounded Parallel Batches with Hybrid Phase Execution**
 
-**Recommendation:** Phases execute sequentially; within each phase, sub-agents process in configurable batches
+**Recommendation:** Most phases execute sequentially; **Phase 4 and Phase 5A execute in parallel**; within each phase, sub-agents process in configurable batches
+
+**Parallel Execution Model:**
+- **Phase 4** (Lab Websites) and **Phase 5A** (PI Publications) run concurrently
+- Both start after Phase 3 (Professor Filtering) completes
+- **Convergence point** before Phase 5B: Both Phase 4 and 5A must complete
+- Timeline reduction: **15-20%** compared to sequential execution
 
 **Rationale:**
 - Prevents overwhelming rate limits (NFR11, NFR4)
@@ -195,7 +246,50 @@ graph TB
 
 ---
 
-**4. MCP-Based LinkedIn Access Pattern: Parallel MCP Server Integration**
+**4. Parallel Phase Convergence Pattern: Checkpoint-Based Validation**
+
+**Recommendation:** Coordinator validates both Phase 4 and Phase 5A completion before starting Phase 5B
+
+**Convergence Validation Logic:**
+```python
+async def validate_parallel_phase_completion(self):
+    """Validate Epic 4 & 5A both complete before Epic 5B"""
+    phase4_complete = self.checkpoint_mgr.phase_complete("phase-4-labs")
+    phase5a_complete = self.checkpoint_mgr.phase_complete("phase-5a-pi-publications")
+
+    if not phase4_complete:
+        raise IncompletePhaseError("Phase 4 (Lab Websites) not complete")
+    if not phase5a_complete:
+        raise IncompletePhaseError("Phase 5A (PI Publications) not complete")
+
+    logger.info("Convergence validated: Phase 4 & 5A complete, proceeding to Phase 5B")
+    return True
+```
+
+**Progress Tracking During Parallel Execution:**
+```python
+# Display format during parallel phases
+"Phase 4: Lab Websites [X/Y labs] | Phase 5A: PI Publications [A/B professors]"
+
+# Display after convergence
+"Convergence validated: Phase 4 & 5A complete → Starting Phase 5B (Member Publications)"
+```
+
+**Checkpoint Requirements:**
+- Phase 4 checkpoint: `checkpoints/phase-4-labs-batch-*.jsonl`
+- Phase 5A checkpoint: `checkpoints/phase-5a-pi-publications-batch-*.jsonl`
+- Both must exist and be complete before Phase 5B can start
+
+**Rationale:**
+- Ensures data dependencies met (Phase 5B needs both lab member lists AND PI publications)
+- Prevents premature Phase 5B execution if one parallel phase fails
+- Clear user feedback about convergence point
+- Enables resume from convergence if Phase 5B interrupted
+- Story 5.4 and 5.5 explicitly depend on this convergence validation
+
+---
+
+**5. MCP-Based LinkedIn Access Pattern: Parallel MCP Server Integration**
 
 **Recommendation:** Use mcp-linkedin MCP server for all LinkedIn operations; no queue needed
 
@@ -261,7 +355,10 @@ This section defines the **DEFINITIVE technology selections** for the Lab Finder
 |----------|-----------|---------|---------|-----------|
 | **Language** | Python | 3.11.7 | Primary development language | Modern async/await, pattern matching, LTS release with performance improvements |
 | **Framework** | Claude Agent SDK | latest | Multi-agent orchestration framework | Core framework per NFR1; provides agent delegation, tool integration |
-| **Browser Automation** | Playwright | 1.40.0 | Web scraping fallback | Fallback for JS-heavy sites when built-in tools fail (NFR5) |
+| **Agent Definition** | AgentDefinition | SDK built-in | Custom agent configuration | Programmatic agent definition with prompts, tools, model selection |
+| **Built-in Web Fetch** | WebFetch | built-in | Web page scraping | Primary web scraping; handles static HTML |
+| **Built-in Web Search** | WebSearch | built-in | Web search | Augments discovery with targeted searches |
+| **Browser Automation** | Playwright | 1.40.0 | Advanced web scraping | Required for JS-heavy sites, auth pages |
 | **MCP Client** | mcp (Model Context Protocol) | 1.0.0 | MCP server communication | Connects to paper-search-mcp and mcp-linkedin servers (NFR6) |
 | **HTTP Client** | httpx | 0.26.0 | Async HTTP requests | Archive.org API, web scraping fallback; native async support |
 | **Archive.org Client** | waybackpy | 3.0.6 | Wayback Machine API wrapper | Website history snapshots (FR14); simplifies Archive.org CDX API interaction |
@@ -332,6 +429,35 @@ This section defines the **DEFINITIVE technology selections** for the Lab Finder
 ⚠️ **Version Pinning Strategy:** All versions listed are exact pins (not ranges). This ensures reproducible builds critical for one-off execution tool reliability.
 
 ⚠️ **Dependency Updates:** Do NOT update dependencies mid-implementation without architectural review. Version drift can break agent orchestration patterns.
+
+---
+
+### Web Scraping Tool Selection
+
+**Decision Flow:**
+
+1. **Public Static Page?**
+   - YES → Use WebFetch
+   - NO → Go to 2
+
+2. **JavaScript-Heavy SPA?**
+   - YES → Use Playwright via Bash
+   - NO → Go to 3
+
+3. **Authentication Required?**
+   - YES → Use Playwright with session management
+   - NO → Try WebFetch, fallback to Playwright
+
+4. **WebFetch Failed?**
+   - JS execution needed → Invoke Playwright
+   - Rate limited → Retry with exponential backoff
+   - Unreachable → Flag in data_quality_flags, continue pipeline
+
+**Tool Usage Examples:**
+- Static department directory → WebFetch ✓
+- React-based professor listing → Playwright ✓
+- LinkedIn profile (auth + dynamic) → Playwright ✓
+- Archive.org snapshots → WebFetch ✓
 
 ## Data Models
 
@@ -551,6 +677,346 @@ These models represent the core domain entities flowing through the Lab Finder p
 - ✅ Track data quality issues in `data_quality_flags` per entity
 - ✅ Implement models as Pydantic classes with type hints and validation
 
+## Agent Definitions
+
+This section provides the complete `AgentDefinition` implementations for all Lab Finder agents. Each agent is configured with a specific description, detailed prompt, tool restrictions, and model selection.
+
+### Phase 0: Configuration Validator Agent
+
+```python
+config_validator = AgentDefinition(
+    description="Validates JSON configurations and consolidates user profile",
+    prompt="""Phase 0: Configuration Validation & Profile Consolidation
+
+Your task: Validate all configuration files and create consolidated user profile
+
+Steps:
+1. Validate each config file against JSON schemas in src/schemas/
+2. Load or prompt for LinkedIn credentials from .env
+3. Use LLM to summarize resume into key highlights
+4. Streamline research interests into clear statements
+5. Save consolidated profile: checkpoints/phase-0-validation.json
+
+Output format (JSON):
+{
+  "name": "...",
+  "target_university": "...",
+  "target_department": "...",
+  "research_interests": [...],
+  "resume_highlights": {...},
+  "preferred_graduation_duration": 5.5
+}
+""",
+    tools=["Read", "Write"],
+    model="sonnet"
+)
+```
+
+### Phase 1: University Structure Discovery Agent
+
+```python
+university_discovery = AgentDefinition(
+    description="Discovers and filters university department structure",
+    prompt="""Phase 1: University Structure Discovery
+
+Your task: Discover and filter relevant departments
+
+Steps:
+1. Scrape university website for organizational structure
+   - Try WebFetch first (fast for static pages)
+   - If fails, use Bash to invoke Playwright script
+2. Extract hierarchy: school → division → department
+3. Filter departments by relevance to target_department
+4. Save results to: checkpoints/phase-1-departments.jsonl
+
+Output format (JSONL):
+{"id": "dept-001", "name": "Computer Science", "school": "Engineering",
+ "url": "...", "is_relevant": true, "relevance_reasoning": "..."}
+""",
+    tools=["WebFetch", "Bash", "Read", "Write", "Glob"],
+    model="sonnet"
+)
+```
+
+### Phase 2: Professor Discovery Agent
+
+```python
+professor_discovery = AgentDefinition(
+    description="Discovers professors from department directories",
+    prompt="""Phase 2A: Professor Discovery
+
+Your task: Scrape professor directories from departments
+
+Steps:
+1. For each department from Phase 1 checkpoint:
+   - Scrape professor directory page (WebFetch primary, Playwright fallback)
+   - Extract: name, title, email, research areas, lab name/URL
+2. Save batch results: checkpoints/phase-2-professors-batch-N.jsonl
+
+Output format (JSONL):
+{"id": "prof-001", "name": "Dr. Jane Smith", "department_id": "dept-001",
+ "lab_name": "Vision Lab", "lab_url": "...", "research_areas": [...]}
+
+Process in batches of 20 professors per checkpoint.
+""",
+    tools=["WebFetch", "Bash", "Read", "Write", "Glob"],
+    model="sonnet"
+)
+```
+
+### Phase 2: Professor Filter Agent
+
+```python
+professor_filter = AgentDefinition(
+    description="Filters professors by research field alignment using LLM",
+    prompt="""Phase 2B: Professor Filtering
+
+Your task: Filter professors by research field match with user interests
+
+Context: You receive user profile and professor list from checkpoints
+
+Steps:
+1. For each professor batch:
+   - Compare research_areas against user research_interests
+   - Provide confidence score (0-100)
+   - Provide reasoning for inclusion/exclusion
+2. Update professor records with filter results
+3. Save filtered batch: checkpoints/phase-2-filtered-batch-N.jsonl
+
+Output format (JSONL):
+{"id": "prof-001", "is_filtered": false, "filter_confidence": 95.0,
+ "filter_reasoning": "Strong alignment with CV and ML interests", ...}
+
+Only pass professors with filter_confidence >= 75.
+""",
+    tools=["Read", "Write"],
+    model="sonnet"
+)
+```
+
+### Phase 3: Lab Scraper Agent
+
+```python
+lab_scraper = AgentDefinition(
+    description="Scrapes lab websites and checks Archive.org history",
+    prompt="""Phase 3A: Lab Website Intelligence
+
+Your task: Scrape lab websites and analyze freshness
+
+Steps:
+1. For each filtered professor with lab_url:
+   - Scrape lab website (WebFetch primary, Playwright fallback)
+   - Extract: description, members, contact info
+   - Check last-modified header
+   - Query Archive.org API for snapshot history using httpx
+2. Analyze update frequency: monthly/yearly/stale
+3. Save results: checkpoints/phase-3-labs-batch-N.jsonl
+
+Output format (JSONL):
+{"id": "lab-001", "pi_id": "prof-001", "description": "...",
+ "last_updated": "2024-09-15", "wayback_history": [...],
+ "update_frequency": "monthly", "members": [...]}
+
+Flag missing websites in data_quality_flags.
+""",
+    tools=["WebFetch", "Bash", "Read", "Write", "Glob"],
+    model="sonnet"
+)
+```
+
+### Phase 3: Publication Retrieval Agent
+
+```python
+publication_agent = AgentDefinition(
+    description="Retrieves publications via paper-search-mcp and analyzes relevance",
+    prompt="""Phase 3B: Publication Retrieval & Analysis
+
+Your task: Fetch publications and assess relevance
+
+Steps:
+1. For each filtered professor:
+   - Query paper-search-mcp MCP server
+   - Search format: "author:Professor Name affiliation:University"
+   - Retrieve last 3 years of publications
+2. For each publication:
+   - Analyze abstract against user research interests
+   - Assign relevance score (0-100)
+   - Lookup journal SJR score from data/scimago-journal-rank.csv
+3. Save results: checkpoints/phase-3-publications-batch-N.jsonl
+
+Output format (JSONL):
+{"id": "10.1234/example", "title": "...", "authors": [...],
+ "journal": "...", "year": 2024, "relevance_score": 92.5,
+ "journal_sjr_score": 1.85, "pi_author_position": "last"}
+
+Use MCP tool: mcp__papers__search_papers
+""",
+    tools=["mcp__papers__search_papers", "Read", "Write", "Glob"],
+    model="sonnet"
+)
+```
+
+### Phase 3: Member Inference Agent
+
+```python
+member_inference = AgentDefinition(
+    description="Infers lab members from co-authorship when website unavailable",
+    prompt="""Phase 3C: Lab Member Inference
+
+Your task: Infer members from publication co-authorship patterns
+
+Steps:
+1. For labs with missing member lists:
+   - Load PI publications from Phase 3B checkpoint
+   - Identify frequent co-authors (3+ papers in 3 years)
+   - Use LLM to validate same university affiliation
+2. Create inferred member records:
+   - Mark is_inferred=true
+   - Assign inference_confidence score
+3. Save results: checkpoints/phase-3-inferred-members.jsonl
+
+Output format (JSONL):
+{"id": "member-001", "lab_id": "lab-001", "name": "Alice Cooper",
+ "role": "PhD Student", "is_inferred": true,
+ "inference_confidence": 85.0, "entry_year": null}
+
+Flag in data_quality_flags: "members_inferred_from_coauthorship"
+""",
+    tools=["Read", "Write"],
+    model="sonnet"
+)
+```
+
+### Phase 4: LinkedIn Matcher Agent
+
+```python
+linkedin_matcher = AgentDefinition(
+    description="Matches lab members to LinkedIn profiles via MCP",
+    prompt="""Phase 4: LinkedIn Profile Matching & PhD Detection
+
+Your task: Match members to LinkedIn and detect graduating PhDs
+
+Steps:
+1. For each lab member (from website or inferred):
+   - Search LinkedIn via: mcp__linkedin__search_people
+   - Query: member name + university + department
+   - LLM-match best profile considering name variants, affiliation
+2. Retrieve profile details: mcp__linkedin__get_profile
+   - Extract education start dates
+   - Calculate expected graduation: entry_year + graduation_duration
+   - Flag if graduating within 1 year
+3. Save results: checkpoints/phase-4-linkedin-batch-N.jsonl
+
+Output format (JSONL):
+{"id": "member-001", "linkedin_profile_url": "...",
+ "linkedin_match_confidence": 95.0, "entry_year": 2020,
+ "expected_graduation_year": 2025, "is_graduating_soon": true}
+
+Use MCP tools: mcp__linkedin__search_people, mcp__linkedin__get_profile
+MCP server handles rate limiting; parallel execution safe.
+""",
+    tools=["mcp__linkedin__search_people", "mcp__linkedin__get_profile", "Read", "Write"],
+    model="sonnet"
+)
+```
+
+### Phase 5: Authorship Analyzer
+
+```python
+authorship_analyzer = AgentDefinition(
+    description="Analyzes publication authorship patterns and collaboration role",
+    prompt="""Phase 5A: Authorship Analysis
+
+Your task: Analyze authorship patterns and assess collaboration role
+
+Steps:
+1. For each lab with publications:
+   - Calculate PI author position distribution (first/last/middle %)
+   - Identify external collaborators (non-university co-authors)
+   - Count collaboration frequency and recency
+2. Use LLM to assess core vs. collaborator role:
+   - Consider field norms (last author = PI in CS/bio)
+   - Analyze author position patterns
+   - Provide reasoning
+3. Save results: checkpoints/phase-5-authorship.jsonl
+
+Output format (JSONL):
+{"lab_id": "lab-001", "pi_first_author_pct": 45.0,
+ "pi_last_author_pct": 50.0, "pi_middle_author_pct": 5.0,
+ "collaboration_role": "Core researcher with occasional collaborations",
+ "collaborators": [...]}
+""",
+    tools=["Read", "Write"],
+    model="sonnet"
+)
+```
+
+### Phase 5: Fitness Scoring Engine
+
+```python
+fitness_scorer = AgentDefinition(
+    description="LLM-driven multi-factor fitness scoring of labs",
+    prompt="""Phase 5B: Fitness Scoring
+
+Your task: Score labs using LLM-identified criteria
+
+Steps:
+1. Analyze user profile to identify scoring criteria and weights:
+   - Research alignment (typically 40% weight)
+   - Publication quality (typically 30%)
+   - Position availability (typically 20%)
+   - Website freshness (typically 10%)
+   - Other user-specific criteria
+2. For each lab:
+   - Score each criterion (0-100)
+   - Calculate weighted overall score
+   - Provide scoring rationale and key highlights
+   - Assign priority tier (1=top, 2=strong, 3=consider)
+3. Sort labs by overall_score descending
+4. Save results: checkpoints/phase-5-scores.jsonl
+
+Output format (JSONL):
+{"lab_id": "lab-001", "overall_score": 88.5,
+ "criteria_scores": {...}, "criteria_weights": {...},
+ "scoring_rationale": "...", "priority_recommendation": 1}
+""",
+    tools=["Read", "Write"],
+    model="sonnet"
+)
+```
+
+### Phase 6: Report Generator
+
+```python
+report_generator = AgentDefinition(
+    description="Generates Overview.md and detailed lab reports",
+    prompt="""Phase 6: Report Generation
+
+Your task: Generate markdown reports
+
+Steps:
+1. Load all checkpoint data (labs, scores, publications, members)
+2. Create Overview.md:
+   - Ranked list of all labs with overall scores
+   - Comparison matrix for top 10 labs
+   - Data quality summary
+3. For each lab, create detailed report labs/{lab-name}.md:
+   - PI info and lab description
+   - Research focus and recent publications
+   - Lab members with LinkedIn profiles
+   - Graduating PhD indicators
+   - Contact information
+   - Data quality flags (⚠️ markers)
+4. Save to output/ directory
+
+Use markdown tables, bullet lists, and headers for readability.
+Flag all missing/inferred data with ⚠️ warnings.
+""",
+    tools=["Read", "Write", "Glob"],
+    model="sonnet"
+)
+```
+
 ## Components
 
 This section defines the major logical components/services and their responsibilities. Each component maps to one or more Python modules and may spawn Claude Agent SDK sub-agents for parallel processing.
@@ -599,7 +1065,13 @@ This section defines the major logical components/services and their responsibil
 - pydantic 2.5.3 for config models
 - Claude Agent SDK for LLM-based summarization
 
-**Agent Pattern:** No sub-agents; synchronous validation and consolidation
+**Agent Pattern:** AgentDefinition for configuration validation
+
+- `config_validator` agent: Validates JSON configs against schemas
+- LLM-based resume summarization and research interest streamlining
+- Synchronous execution (Phase 0 prerequisite for all other phases)
+- Checkpoint saved to phase-0-validation.json
+- See Agent Definitions section for complete implementation
 
 ---
 
@@ -622,7 +1094,12 @@ This section defines the major logical components/services and their responsibil
 - Playwright 1.40.0 as fallback
 - structlog with phase context
 
-**Agent Pattern:** Spawns sub-agents per school/division for parallel discovery; coordinator aggregates results
+**Agent Pattern:** AgentDefinition-based discovery with automatic SDK parallelization
+
+- SDK invokes `university_discovery` agent when coordinator requests department structure
+- Parallel processing handled by SDK for large universities
+- Returns filtered department structure with checkpoint saved to phase-1-departments.jsonl
+- See Agent Definitions section for complete implementation
 
 ---
 
@@ -644,7 +1121,13 @@ This section defines the major logical components/services and their responsibil
 - aiolimiter for rate limiting per university domain
 - tenacity for retry logic on scraping failures
 
-**Agent Pattern:** Spawns sub-agents per department for parallel professor discovery; separate sub-agents for filtering batches
+**Agent Pattern:** Dual AgentDefinition pattern - discovery + filtering
+
+- `professor_discovery` agent: Scrapes professor directories in parallel per department
+- `professor_filter` agent: LLM-based filtering with confidence scoring
+- SDK coordinates sequential execution: discovery → filtering
+- Batch checkpoints enable mid-phase resume
+- See Agent Definitions section for complete implementation
 
 ---
 
@@ -667,7 +1150,13 @@ This section defines the major logical components/services and their responsibil
 - Claude Agent SDK for website scraping and contact extraction
 - tenacity for retry logic
 
-**Agent Pattern:** Spawns sub-agents per lab (batch-limited) for parallel website scraping
+**Agent Pattern:** AgentDefinition-based batch scraping with Archive.org integration
+
+- `lab_scraper` agent: WebFetch primary, Playwright fallback for JS-heavy sites
+- Parallel execution across labs (configurable batch size)
+- Archive.org API calls via httpx for snapshot history
+- Checkpoints saved to phase-3-labs-batch-N.jsonl
+- See Agent Definitions section for complete implementation
 
 ---
 
@@ -691,7 +1180,14 @@ This section defines the major logical components/services and their responsibil
 - pandas 2.1.4 for SJR CSV loading
 - Claude Agent SDK for abstract analysis
 
-**Agent Pattern:** Spawns sub-agents per professor/member for parallel publication retrieval
+**Agent Pattern:** AgentDefinition with MCP integration for parallel retrieval
+
+- `publication_agent` agent: Queries paper-search-mcp MCP server per professor
+- MCP tool: `mcp__papers__search_papers` with author + affiliation query
+- LLM analyzes abstracts for relevance scoring
+- SJR journal scores loaded from CSV at startup
+- Parallel execution across professors (SDK-managed)
+- See Agent Definitions section for complete implementation
 
 ---
 
@@ -711,7 +1207,14 @@ This section defines the major logical components/services and their responsibil
 - Claude Agent SDK for pattern analysis
 - python-dateutil for timeline analysis
 
-**Agent Pattern:** No sub-agents; processes lab-by-lab sequentially (lightweight analysis)
+**Agent Pattern:** AgentDefinition for co-authorship pattern analysis
+
+- `member_inference` agent: Analyzes frequent co-authors from publication data
+- LLM validates university affiliation for inferred members
+- Sequential processing (lightweight, no parallelization needed)
+- Marks inferred members with is_inferred=true and confidence score
+- Flags in data_quality: "members_inferred_from_coauthorship"
+- See Agent Definitions section for complete implementation
 
 ---
 
@@ -733,7 +1236,15 @@ This section defines the major logical components/services and their responsibil
 - Claude Agent SDK for LLM-based matching
 - python-dateutil 2.8.2 for date calculations
 
-**Agent Pattern:** Spawns sub-agents per lab (batch-limited) for parallel LinkedIn profile matching via MCP
+**Agent Pattern:** AgentDefinition with parallel MCP-based LinkedIn matching
+
+- `linkedin_matcher` agent: Uses mcp-linkedin MCP server for profile search/retrieval
+- MCP tools: `mcp__linkedin__search_people`, `mcp__linkedin__get_profile`
+- LLM matches profiles considering name variants and affiliations
+- MCP server handles authentication and rate limiting (no application queue needed)
+- Parallel execution safe - multiple agents can call MCP concurrently
+- Calculates expected graduation dates from LinkedIn education data
+- See Agent Definitions section for complete implementation
 
 ---
 
@@ -754,7 +1265,14 @@ This section defines the major logical components/services and their responsibil
 - Claude Agent SDK for collaboration assessment
 - Pure Python for author position calculations
 
-**Agent Pattern:** No sub-agents; processes all labs sequentially (fast in-memory analysis)
+**Agent Pattern:** AgentDefinition for authorship pattern analysis
+
+- `authorship_analyzer` agent: Calculates PI author position distribution
+- LLM assesses core vs. collaborator role based on field norms
+- Identifies external collaborators from co-author affiliations
+- Sequential processing (in-memory analysis, no heavy I/O)
+- Checkpoint saved to phase-5-authorship.jsonl
+- See Agent Definitions section for complete implementation
 
 ---
 
@@ -775,7 +1293,14 @@ This section defines the major logical components/services and their responsibil
 - Claude Agent SDK for LLM-driven scoring
 - Pure Python for score normalization and ranking
 
-**Agent Pattern:** Spawns sub-agents for batch scoring (e.g., 10 labs per agent for parallel scoring)
+**Agent Pattern:** AgentDefinition for LLM-driven fitness scoring
+
+- `fitness_scorer` agent: LLM identifies scoring criteria dynamically based on user profile
+- Scores each lab across multiple criteria with weighted calculation
+- Parallel batch scoring (configurable batch size, e.g., 10 labs per batch)
+- Provides rationale and priority recommendations (1=top, 2=strong, 3=consider)
+- Checkpoint saved to phase-5-scores.jsonl with ranked results
+- See Agent Definitions section for complete implementation
 
 ---
 
@@ -798,7 +1323,14 @@ This section defines the major logical components/services and their responsibil
 - jinja2 (add to tech stack if needed) or f-strings for templating
 - rich 13.7.0 for markdown preview
 
-**Agent Pattern:** No sub-agents; single-threaded report generation (fast, I/O bound)
+**Agent Pattern:** AgentDefinition for markdown report generation
+
+- `report_generator` agent: Loads all checkpoint data and generates reports
+- Creates Overview.md with ranked labs and comparison matrix
+- Generates individual lab reports with data quality flags (⚠️ markers)
+- Single-threaded execution (fast I/O operations, no parallelization needed)
+- All reports saved to output/ directory
+- See Agent Definitions section for complete implementation
 
 ---
 
@@ -1398,6 +1930,226 @@ lab-finder/
 - `checkpoints/`, `output/`, `logs/` created at runtime (gitignored except .gitkeep)
 - Allows clean repository without generated files
 
+## Implementation Patterns
+
+This section provides SDK-specific implementation patterns for Lab Finder based on Claude Agent SDK capabilities.
+
+### Pattern 1: Coordinator Structure with AgentDefinition
+
+```python
+from claude_agent_sdk import query, ClaudeAgentOptions, AgentDefinition
+
+class LabFinderCoordinator:
+    def __init__(self):
+        # Define all phase agents (see Agent Definitions section for complete prompts)
+        self.agents = {
+            'config-validator': self._create_config_validator(),
+            'university-discovery': self._create_university_discovery(),
+            'professor-discovery': self._create_professor_discovery(),
+            'professor-filter': self._create_professor_filter(),
+            'lab-scraper': self._create_lab_scraper(),
+            'publication-agent': self._create_publication_agent(),
+            'member-inference': self._create_member_inference(),
+            'linkedin-matcher': self._create_linkedin_matcher(),
+            'authorship-analyzer': self._create_authorship_analyzer(),
+            'fitness-scorer': self._create_fitness_scorer(),
+            'report-generator': self._create_report_generator(),
+        }
+
+        # Configure SDK options with MCP servers
+        self.options = ClaudeAgentOptions(
+            agents=self.agents,
+            mcp_servers={
+                "papers": {
+                    "type": "stdio",
+                    "command": "npx",
+                    "args": ["-y", "@modelcontextprotocol/server-paper-search"]
+                },
+                "linkedin": {
+                    "type": "stdio",
+                    "command": "mcp-linkedin"
+                }
+            },
+            allowed_tools=[
+                "Read", "Write", "WebFetch", "Bash", "Glob",
+                "mcp__papers__search_papers",
+                "mcp__linkedin__search_people",
+                "mcp__linkedin__get_profile"
+            ]
+        )
+
+    async def run_pipeline(self, config_path: str):
+        """Execute complete Lab Finder pipeline"""
+
+        # Phase 0: Validation
+        print("Phase 0: Validating configuration...")
+        async for msg in query(
+            f"Validate configuration files at {config_path}",
+            options=self.options
+        ):
+            user_profile = self._extract_user_profile(msg)
+
+        # Phase 1: University Discovery
+        print("Phase 1: Discovering university structure...")
+        checkpoint_0 = self._load_checkpoint("phase-0-validation.json")
+        async for msg in query(
+            f"""Discover department structure at {user_profile['target_university']}.
+            Context: {json.dumps(checkpoint_0)}""",
+            options=self.options
+        ):
+            departments = self._extract_departments(msg)
+
+        # Continue for remaining phases...
+```
+
+### Pattern 2: Checkpoint-Based State Passing (Essential for Agent Context Isolation)
+
+**Critical Insight:** SDK agents have isolated contexts with no shared memory. All state must be passed via checkpoints.
+
+```python
+import jsonlines
+from pathlib import Path
+
+class CheckpointManager:
+    def __init__(self, checkpoint_dir: str = "checkpoints"):
+        self.checkpoint_dir = Path(checkpoint_dir)
+        self.checkpoint_dir.mkdir(exist_ok=True)
+
+    def save_checkpoint(self, phase: str, data: list[dict]):
+        """Save phase checkpoint as JSONL"""
+        checkpoint_path = self.checkpoint_dir / f"{phase}.jsonl"
+        with jsonlines.open(checkpoint_path, mode='w') as writer:
+            writer.write_all(data)
+
+    def load_checkpoint(self, phase: str) -> list[dict]:
+        """Load phase checkpoint"""
+        checkpoint_path = self.checkpoint_dir / f"{phase}.jsonl"
+        if not checkpoint_path.exists():
+            return []
+
+        with jsonlines.open(checkpoint_path) as reader:
+            return list(reader)
+
+# Usage in coordinator
+checkpoint_mgr = CheckpointManager()
+
+# After Phase 1
+departments = extract_departments_from_response(msg)
+checkpoint_mgr.save_checkpoint("phase-1-departments", departments)
+
+# Before Phase 2 - Load and pass complete context
+phase1_data = checkpoint_mgr.load_checkpoint("phase-1-departments")
+prompt = f"""Process these departments: {json.dumps(phase1_data)}
+User Profile: {json.dumps(user_profile)}"""
+```
+
+### Pattern 3: Parallel Batch Processing with SDK
+
+```python
+# For large datasets, create multiple agent instances
+def create_parallel_agents(base_agent: AgentDefinition, count: int) -> dict:
+    """Create multiple instances of an agent for parallel processing"""
+    return {
+        f'{base_agent.description.lower().replace(" ", "-")}-{i}': AgentDefinition(
+            description=f"{base_agent.description} (Worker {i})",
+            prompt=base_agent.prompt,
+            tools=base_agent.tools,
+            model=base_agent.model
+        )
+        for i in range(count)
+    }
+
+# Use for parallel lab scraping
+parallel_lab_scrapers = create_parallel_agents(lab_scraper_agent, count=5)
+
+options_parallel = ClaudeAgentOptions(
+    agents=parallel_lab_scrapers,
+    mcp_servers=base_mcp_servers
+)
+
+# SDK automatically distributes work across 5 agents
+async for msg in query(
+    "Scrape these 50 lab websites concurrently",
+    options=options_parallel
+):
+    collect_batch_results(msg)
+```
+
+### Pattern 4: Graceful Degradation with WebFetch → Playwright Fallback
+
+```python
+async def scrape_with_fallback(url: str) -> str:
+    """Tiered scraping: WebFetch → Playwright → Skip"""
+
+    # Try primary scraper (WebFetch)
+    primary_agent = AgentDefinition(
+        description="Primary web scraper",
+        prompt=f"""Scrape {url} using WebFetch.
+        If you encounter JavaScript or authentication requirements,
+        respond with: 'WEBFETCH_FAILED: [reason]'""",
+        tools=["WebFetch", "Read", "Write"],
+        model="sonnet"
+    )
+
+    options_primary = ClaudeAgentOptions(agents={'primary-scraper': primary_agent})
+
+    async for msg in query(f"Scrape {url}", options=options_primary):
+        if "WEBFETCH_FAILED" not in msg.content:
+            return msg.content  # Success with WebFetch
+
+        # Fallback to Playwright
+        fallback_agent = AgentDefinition(
+            description="Playwright fallback scraper",
+            prompt=f"""Scrape {url} using Playwright.
+            Use Bash to invoke: python scripts/playwright_scrape.py {url}""",
+            tools=["Bash", "Read", "Write"],
+            model="sonnet"
+        )
+
+        options_fallback = ClaudeAgentOptions(agents={'fallback-scraper': fallback_agent})
+
+        async for fallback_msg in query(f"Scrape {url} with Playwright", options=options_fallback):
+            if "ERROR" in fallback_msg.content:
+                # Both failed, flag and skip
+                return {"error": "scraping_failed", "url": url, "flagged": True}
+            return fallback_msg.content
+```
+
+### Pattern 5: MCP Server Integration (No Queue Needed)
+
+```python
+# LinkedIn matching with parallel MCP access
+linkedin_matcher = AgentDefinition(
+    description="Matches lab members to LinkedIn profiles",
+    prompt="""Match lab member to LinkedIn profile.
+
+    Steps:
+    1. Search LinkedIn: mcp__linkedin__search_people
+    2. LLM-match best profile considering name variants
+    3. Get profile details: mcp__linkedin__get_profile
+    4. Extract education start date and calculate graduation
+    """,
+    tools=["mcp__linkedin__search_people", "mcp__linkedin__get_profile", "Read", "Write"],
+    model="sonnet"
+)
+
+# Multiple agents can call MCP tools concurrently
+# MCP server handles rate limiting internally - no application queue needed
+options = ClaudeAgentOptions(
+    agents={'linkedin-matcher': linkedin_matcher},
+    mcp_servers={
+        "linkedin": {
+            "type": "stdio",
+            "command": "mcp-linkedin"
+        }
+    }
+)
+
+# Parallel execution is safe
+async for msg in query("Match these 20 lab members to LinkedIn", options=options):
+    process_linkedin_matches(msg)
+```
+
 ## Infrastructure and Deployment
 
 ### Infrastructure as Code
@@ -1784,6 +2536,123 @@ async def test_publication_retrieval_mcp(tmp_path):
 - **SAST Tool:** None (recommend `bandit` for Python if desired)
 - **DAST Tool:** Not applicable (no web service)
 - **Penetration Testing:** Not applicable (local tool)
+
+## Risk Assessment
+
+This section documents architectural risks and mitigation strategies based on Claude Agent SDK validation.
+
+### ✅ Risks Resolved
+
+**1. Multi-Agent Orchestration Uncertainty** → RESOLVED
+- **Original Risk:** Uncertainty about SDK support for hierarchical multi-agent coordination
+- **Resolution:** SDK provides native AgentDefinition support with automatic parallel execution
+- **Evidence:** Research validated full compatibility with designed architecture
+- **Impact:** Development can proceed as planned with no architectural changes
+
+**2. Web Scraping Tool Availability** → RESOLVED
+- **Original Risk:** Unclear if SDK provides built-in web scraping capabilities
+- **Resolution:** WebFetch and WebSearch tools confirmed as built-in
+- **Evidence:** SDK documentation and research findings validate tool availability
+- **Impact:** Playwright remains as fallback only; primary tooling is SDK-native
+
+**3. MCP Integration Questions** → RESOLVED
+- **Original Risk:** Uncertainty about external MCP server integration pattern
+- **Resolution:** External MCP servers (paper-search-mcp, mcp-linkedin) work exactly as designed
+- **Evidence:** SDK supports MCP configuration via ClaudeAgentOptions
+- **Impact:** LinkedIn queue pattern simplified - MCP handles rate limiting internally
+
+### ⚠️ Active Risks
+
+**1. Context Isolation Complexity**
+
+**Risk:** SDK agents maintain isolated contexts with no shared memory; all state must be passed explicitly via prompts
+
+**Mitigation Strategies:**
+- Implement robust CheckpointManager for phase-to-phase state persistence
+- Include complete context in agent prompts (user profile + previous phase data)
+- Use JSON serialization for structured data passing between phases
+- Document context requirements in each agent's prompt template
+
+**Impact:** Medium
+- Adds prompt engineering overhead
+- Requires careful checkpoint design
+- Already accounted for in architecture via JSONL checkpoints
+
+**Status:** Mitigated by checkpoint-based architecture
+
+---
+
+**2. WebFetch JavaScript Limitations**
+
+**Risk:** WebFetch cannot execute JavaScript; may fail on modern JavaScript-heavy sites requiring fallback
+
+**Mitigation Strategies:**
+- Clear fallback path to Playwright defined in Web Scraping Decision Tree
+- Budget for higher Playwright usage (40-60% of scraping operations)
+- Accept graceful degradation - flag failed scrapes in data_quality_flags
+- Playwright scripts prepared for common JS frameworks (React, Angular, Vue)
+
+**Impact:** Low
+- Already planned for in architecture (Playwright as explicit fallback)
+- Does not block pipeline progression (graceful degradation strategy)
+- Additional Playwright usage increases runtime but doesn't affect functionality
+
+**Status:** Accepted risk with mitigation in place
+
+---
+
+**3. MCP Server Availability**
+
+**Risk:** External MCP servers (paper-search-mcp, mcp-linkedin) may become unavailable or change APIs
+
+**Mitigation Strategies:**
+- Version pin MCP server installations in setup documentation
+- Implement MCP connection health checks in Phase 0 validation
+- Graceful degradation: Skip MCP-dependent features if servers unavailable
+- Flag missing LinkedIn/publication data in data_quality_flags
+
+**Impact:** Medium
+- LinkedIn matching optional (can complete pipeline without it)
+- Publications can be skipped (fitness scoring adapts to available data)
+- User informed of missing features via data quality warnings
+
+**Status:** Monitored - depends on external service stability
+
+---
+
+**4. Rate Limiting and Blocking**
+
+**Risk:** Web scraping and LinkedIn access may trigger rate limits or account blocks
+
+**Mitigation Strategies:**
+- Implement aiolimiter for per-domain rate limiting (configurable in system-parameters.json)
+- Use mcp-linkedin server's internal rate limiting (no application queue needed)
+- Exponential backoff retry logic (tenacity library) for failed requests
+- Batch processing with configurable delays between batches
+- User-provided LinkedIn credentials (not shared accounts)
+
+**Impact:** Medium
+- May extend pipeline runtime if aggressive rate limits encountered
+- LinkedIn blocking would disable member matching (graceful degradation)
+- University blocking would require manual intervention or proxy configuration
+
+**Status:** Mitigated by rate limiting and retry strategies
+
+### Risk Summary
+
+| Risk Category | Status | Mitigation | Blocking? |
+|---------------|--------|------------|-----------|
+| Multi-agent orchestration | ✅ Resolved | SDK native support | No |
+| Web scraping tools | ✅ Resolved | WebFetch built-in | No |
+| MCP integration | ✅ Resolved | SDK MCP configuration | No |
+| Context isolation | ⚠️ Active | Checkpoint-based state | No |
+| JavaScript limitations | ⚠️ Active | Playwright fallback | No |
+| MCP server availability | ⚠️ Active | Graceful degradation | No |
+| Rate limiting | ⚠️ Active | Backoff + batching | No |
+
+**Overall Risk Level: LOW**
+
+All critical architectural risks have been resolved through SDK validation. Active risks are manageable with defined mitigation strategies and do not block implementation.
 
 ## Next Steps
 

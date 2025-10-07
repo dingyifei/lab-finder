@@ -40,6 +40,11 @@ logs/*
 .env
 config/.env
 
+# User configuration files (contain PII)
+config/user_profile.json
+config/university_config.json
+config/system_params.json
+
 # IDE
 .vscode/
 .idea/
