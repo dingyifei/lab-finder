@@ -152,7 +152,7 @@ jobs:
           echo "No actual MCP server installation required"
 
       - name: Run integration tests
-        run: pytest tests/integration/ -v
+        run: pytest tests/integration/ -v --no-cov
         env:
           CI: true  # Flag to enable MCP mocking in tests
 
