@@ -7,13 +7,13 @@ import uuid
 
 # Data quality flag constants
 DATA_QUALITY_FLAGS = {
-    "missing_url",           # Department URL not found
-    "missing_school",        # School name unknown (using placeholder)
-    "ambiguous_hierarchy",   # Hierarchy level unclear
-    "partial_metadata",      # Some fields missing
-    "inference_based",       # Information inferred not scraped
-    "manual_entry",          # From manual fallback config
-    "scraping_failed"        # Web scraping failed, using fallback
+    "missing_url",  # Department URL not found
+    "missing_school",  # School name unknown (using placeholder)
+    "ambiguous_hierarchy",  # Hierarchy level unclear
+    "partial_metadata",  # Some fields missing
+    "inference_based",  # Information inferred not scraped
+    "manual_entry",  # From manual fallback config
+    "scraping_failed",  # Web scraping failed, using fallback
 }
 
 
@@ -52,7 +52,9 @@ class Department(BaseModel):
             ValueError: If flag is not in DATA_QUALITY_FLAGS
         """
         if flag not in DATA_QUALITY_FLAGS:
-            raise ValueError(f"Invalid data quality flag: {flag}. Must be one of {DATA_QUALITY_FLAGS}")
+            raise ValueError(
+                f"Invalid data quality flag: {flag}. Must be one of {DATA_QUALITY_FLAGS}"
+            )
 
         if flag not in self.data_quality_flags:
             self.data_quality_flags.append(flag)

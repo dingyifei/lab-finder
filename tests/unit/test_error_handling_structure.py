@@ -14,10 +14,7 @@ class TestDepartmentModel:
 
     def test_department_creation_with_defaults(self):
         """Test creating department with default values."""
-        dept = Department(
-            name="Computer Science",
-            url="https://example.edu/cs"
-        )
+        dept = Department(name="Computer Science", url="https://example.edu/cs")
 
         assert dept.name == "Computer Science"
         assert dept.url == "https://example.edu/cs"
@@ -39,7 +36,7 @@ class TestDepartmentModel:
             hierarchy_level=2,
             is_relevant=True,
             relevance_reasoning="Strong AI research",
-            data_quality_flags=["missing_url"]
+            data_quality_flags=["missing_url"],
         )
 
         assert dept.name == "Computer Science"
@@ -110,7 +107,7 @@ class TestUniversityDiscoveryAgent:
         return UniversityDiscoveryAgent(
             correlation_id="test-correlation-id",
             checkpoint_manager=None,
-            output_dir=tmp_path / "output"
+            output_dir=tmp_path / "output",
         )
 
     @pytest.mark.asyncio
@@ -168,7 +165,9 @@ class TestUniversityDiscoveryAgent:
             mock_response = Mock()
             mock_response.status_code = 404
             mock_response.raise_for_status = Mock(
-                side_effect=httpx.HTTPStatusError("Not Found", request=Mock(), response=mock_response)
+                side_effect=httpx.HTTPStatusError(
+                    "Not Found", request=Mock(), response=mock_response
+                )
             )
 
             mock_get = AsyncMock(return_value=mock_response)
@@ -213,7 +212,7 @@ class TestUniversityDiscoveryAgent:
         department_data = {
             "name": "Computer Science",
             "url": "https://example.edu/cs",
-            "hierarchy_level": 2
+            "hierarchy_level": 2,
         }
 
         dept = agent._apply_graceful_degradation(department_data, [])
@@ -224,10 +223,7 @@ class TestUniversityDiscoveryAgent:
 
     def test_apply_graceful_degradation_missing_url(self, agent):
         """Test graceful degradation flags missing URL."""
-        department_data = {
-            "name": "Computer Science",
-            "school": "Engineering"
-        }
+        department_data = {"name": "Computer Science", "school": "Engineering"}
 
         dept = agent._apply_graceful_degradation(department_data, [])
 
@@ -253,10 +249,12 @@ class TestUniversityDiscoveryAgent:
             "name": "Computer Science",
             "school": "Engineering",
             "url": "https://example.edu/cs",
-            "hierarchy_level": 0
+            "hierarchy_level": 0,
         }
 
-        dept = agent._apply_graceful_degradation(department_data, ["ambiguous_hierarchy"])
+        dept = agent._apply_graceful_degradation(
+            department_data, ["ambiguous_hierarchy"]
+        )
 
         assert "ambiguous_hierarchy" in dept.data_quality_flags
 
@@ -269,14 +267,14 @@ class TestUniversityDiscoveryAgent:
                     "name": "Computer Science",
                     "school": "Engineering",
                     "url": "https://example.edu/cs",
-                    "hierarchy_level": 2
+                    "hierarchy_level": 2,
                 },
                 {
                     "name": "Mathematics",
                     "school": "Sciences",
                     "url": "https://example.edu/math",
-                    "hierarchy_level": 2
-                }
+                    "hierarchy_level": 2,
+                },
             ]
         }
 
@@ -339,7 +337,9 @@ class TestUniversityDiscoveryAgent:
         departments = [
             Department(name="CS", url="https://example.edu/cs", school="Engineering"),
             Department(name="Math", url="https://example.edu/math"),  # Missing school
-            Department(name="Physics", url="https://example.edu/physics"),  # Missing school
+            Department(
+                name="Physics", url="https://example.edu/physics"
+            ),  # Missing school
         ]
 
         result = agent.validate_department_structure(departments)
@@ -436,7 +436,9 @@ class TestUniversityDiscoveryAgent:
         dept1 = Department(name="CS", url="", school="Engineering")
         dept1.add_quality_flag("missing_url")
 
-        dept2 = Department(name="Math", url="https://example.edu/math", school="Unknown School")
+        dept2 = Department(
+            name="Math", url="https://example.edu/math", school="Unknown School"
+        )
         dept2.add_quality_flag("missing_school")
 
         departments = [dept1, dept2]
@@ -479,15 +481,16 @@ class TestUniversityDiscoveryAgent:
             mock_response = Mock()
             mock_response.status_code = 404
             mock_response.raise_for_status = Mock(
-                side_effect=httpx.HTTPStatusError("Not Found", request=Mock(), response=mock_response)
+                side_effect=httpx.HTTPStatusError(
+                    "Not Found", request=Mock(), response=mock_response
+                )
             )
 
             mock_get = AsyncMock(return_value=mock_response)
             mock_client.return_value.__aenter__.return_value.get = mock_get
 
             departments = await agent.discover_structure(
-                "https://example.edu/notfound",
-                manual_fallback_path=fallback_path
+                "https://example.edu/notfound", manual_fallback_path=fallback_path
             )
 
             assert len(departments) == 1
@@ -500,7 +503,11 @@ class TestUniversityDiscoveryAgent:
         fallback_path = tmp_path / "departments_fallback.json"
         fallback_data = {
             "departments": [
-                {"name": "Math", "school": "Sciences", "url": "https://example.edu/math"}
+                {
+                    "name": "Math",
+                    "school": "Sciences",
+                    "url": "https://example.edu/math",
+                }
             ]
         }
 
@@ -512,8 +519,7 @@ class TestUniversityDiscoveryAgent:
             mock_client.return_value.__aenter__.return_value.get = mock_get
 
             departments = await agent.discover_structure(
-                "https://example.edu/timeout",
-                manual_fallback_path=fallback_path
+                "https://example.edu/timeout", manual_fallback_path=fallback_path
             )
 
             assert len(departments) == 1
@@ -527,7 +533,9 @@ class TestUniversityDiscoveryAgent:
             mock_response = Mock()
             mock_response.status_code = 404
             mock_response.raise_for_status = Mock(
-                side_effect=httpx.HTTPStatusError("Not Found", request=Mock(), response=mock_response)
+                side_effect=httpx.HTTPStatusError(
+                    "Not Found", request=Mock(), response=mock_response
+                )
             )
 
             mock_get = AsyncMock(return_value=mock_response)

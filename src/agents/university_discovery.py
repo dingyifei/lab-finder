@@ -3,7 +3,12 @@
 import json
 from pathlib import Path
 from typing import Any, Optional
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 import httpx
 
 from src.models.department import Department
@@ -45,7 +50,7 @@ class UniversityDiscoveryAgent:
         self,
         correlation_id: str,
         checkpoint_manager: Optional[CheckpointManager] = None,
-        output_dir: Path = Path("output")
+        output_dir: Path = Path("output"),
     ):
         """Initialize discovery agent.
 
@@ -58,7 +63,7 @@ class UniversityDiscoveryAgent:
         self.logger: Any = get_logger(
             correlation_id=correlation_id,
             phase="university_discovery",
-            component="university_discovery_agent"
+            component="university_discovery_agent",
         )
         self.checkpoint_manager = checkpoint_manager
         self.output_dir = output_dir
@@ -68,7 +73,7 @@ class UniversityDiscoveryAgent:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
         retry=retry_if_exception_type((httpx.TimeoutException, httpx.NetworkError)),
-        reraise=True
+        reraise=True,
     )
     async def _fetch_page_with_retry(self, url: str, timeout: int = 30) -> str:
         """Fetch page content with retry logic for transient failures.
@@ -92,7 +97,9 @@ class UniversityDiscoveryAgent:
             response.raise_for_status()
             return response.text
 
-    def _detect_incomplete_structure(self, html_content: Optional[str], url: str) -> list[str]:
+    def _detect_incomplete_structure(
+        self, html_content: Optional[str], url: str
+    ) -> list[str]:
         """Detect if structure discovery is incomplete or ambiguous.
 
         Args:
@@ -108,18 +115,14 @@ class UniversityDiscoveryAgent:
         if html_content is None:
             issues.append("no_html_content")
             self.logger.warning(
-                "No HTML content returned",
-                url=url,
-                issue="no_html_content"
+                "No HTML content returned", url=url, issue="no_html_content"
             )
             return issues
 
         if not html_content.strip():
             issues.append("empty_html_content")
             self.logger.warning(
-                "Empty HTML content",
-                url=url,
-                issue="empty_html_content"
+                "Empty HTML content", url=url, issue="empty_html_content"
             )
 
         # Basic HTML validation
@@ -128,15 +131,13 @@ class UniversityDiscoveryAgent:
             self.logger.warning(
                 "HTML missing basic structure tags",
                 url=url,
-                issue="invalid_html_structure"
+                issue="invalid_html_structure",
             )
 
         return issues
 
     def _apply_graceful_degradation(
-        self,
-        department_data: dict,
-        issues: list[str]
+        self, department_data: dict, issues: list[str]
     ) -> Department:
         """Apply graceful degradation for missing or ambiguous data.
 
@@ -160,7 +161,7 @@ class UniversityDiscoveryAgent:
             school=school,
             division=division,
             url=url,
-            hierarchy_level=hierarchy_level
+            hierarchy_level=hierarchy_level,
         )
 
         # Apply data quality flags based on missing data
@@ -186,15 +187,13 @@ class UniversityDiscoveryAgent:
                 "Applied graceful degradation",
                 department=name,
                 school=school,
-                quality_flags=dept.data_quality_flags
+                quality_flags=dept.data_quality_flags,
             )
 
         return dept
 
     async def discover_structure(
-        self,
-        university_url: str,
-        manual_fallback_path: Optional[Path] = None
+        self, university_url: str, manual_fallback_path: Optional[Path] = None
     ) -> list[Department]:
         """Discover university department structure with error handling.
 
@@ -223,7 +222,11 @@ class UniversityDiscoveryAgent:
             # TODO: Actual scraping logic would go here
             # For now, create placeholder to demonstrate error handling
             # This would be implemented in Story 2.1
-            self.logger.info("HTML fetch successful", url=university_url, content_length=len(html_content))
+            self.logger.info(
+                "HTML fetch successful",
+                url=university_url,
+                content_length=len(html_content),
+            )
 
         except httpx.HTTPStatusError as e:
             # Non-retryable HTTP error (404, 403, etc.)
@@ -231,7 +234,7 @@ class UniversityDiscoveryAgent:
                 "HTTP error during structure discovery",
                 url=university_url,
                 status_code=e.response.status_code,
-                error=str(e)
+                error=str(e),
             )
 
             # Try manual fallback
@@ -249,7 +252,7 @@ class UniversityDiscoveryAgent:
                 "Network error after max retries",
                 url=university_url,
                 error=str(e),
-                attempted_retries=3
+                attempted_retries=3,
             )
 
             # Try manual fallback
@@ -267,7 +270,7 @@ class UniversityDiscoveryAgent:
                 "Unexpected error during structure discovery",
                 url=university_url,
                 error_type=type(e).__name__,
-                error=str(e)
+                error=str(e),
             )
 
             # Try manual fallback
@@ -294,7 +297,9 @@ class UniversityDiscoveryAgent:
 
         try:
             if not fallback_path.exists():
-                self.logger.warning("Manual fallback file not found", path=str(fallback_path))
+                self.logger.warning(
+                    "Manual fallback file not found", path=str(fallback_path)
+                )
                 return []
 
             with open(fallback_path, "r", encoding="utf-8") as f:
@@ -307,7 +312,7 @@ class UniversityDiscoveryAgent:
                     school=dept_data.get("school"),
                     division=dept_data.get("division"),
                     url=dept_data.get("url", ""),
-                    hierarchy_level=dept_data.get("hierarchy_level", 0)
+                    hierarchy_level=dept_data.get("hierarchy_level", 0),
                 )
                 dept.add_quality_flag("manual_entry")
                 departments.append(dept)
@@ -315,20 +320,20 @@ class UniversityDiscoveryAgent:
             self.logger.info(
                 "Loaded manual fallback departments",
                 count=len(departments),
-                path=str(fallback_path)
+                path=str(fallback_path),
             )
 
             return departments
 
         except Exception as e:
             self.logger.error(
-                "Failed to load manual fallback",
-                path=str(fallback_path),
-                error=str(e)
+                "Failed to load manual fallback", path=str(fallback_path), error=str(e)
             )
             return []
 
-    def validate_department_structure(self, departments: list[Department]) -> ValidationResult:
+    def validate_department_structure(
+        self, departments: list[Department]
+    ) -> ValidationResult:
         """Validate discovered department structure against minimum requirements.
 
         Minimum requirements:
@@ -361,7 +366,9 @@ class UniversityDiscoveryAgent:
 
         # Calculate percentages
         url_percentage = (result.departments_with_urls / result.total_departments) * 100
-        school_percentage = (result.departments_with_schools / result.total_departments) * 100
+        school_percentage = (
+            result.departments_with_schools / result.total_departments
+        ) * 100
 
         # Check 50% thresholds
         if url_percentage < 50:
@@ -382,7 +389,7 @@ class UniversityDiscoveryAgent:
                 total_departments=result.total_departments,
                 url_percentage=url_percentage,
                 school_percentage=school_percentage,
-                errors=result.errors
+                errors=result.errors,
             )
         else:
             result.is_valid = True
@@ -406,12 +413,11 @@ class UniversityDiscoveryAgent:
                     total_departments=result.total_departments,
                     url_percentage=url_percentage,
                     school_percentage=school_percentage,
-                    warnings=result.warnings
+                    warnings=result.warnings,
                 )
             else:
                 self.logger.info(
-                    "Validation passed",
-                    total_departments=result.total_departments
+                    "Validation passed", total_departments=result.total_departments
                 )
 
         return result
@@ -430,12 +436,18 @@ class UniversityDiscoveryAgent:
             "total_departments": result.total_departments,
             "departments_with_urls": result.departments_with_urls,
             "departments_with_schools": result.departments_with_schools,
-            "url_percentage": (result.departments_with_urls / result.total_departments * 100)
-            if result.total_departments > 0 else 0,
-            "school_percentage": (result.departments_with_schools / result.total_departments * 100)
-            if result.total_departments > 0 else 0,
+            "url_percentage": (
+                result.departments_with_urls / result.total_departments * 100
+            )
+            if result.total_departments > 0
+            else 0,
+            "school_percentage": (
+                result.departments_with_schools / result.total_departments * 100
+            )
+            if result.total_departments > 0
+            else 0,
             "errors": result.errors,
-            "warnings": result.warnings
+            "warnings": result.warnings,
         }
 
         with open(output_path, "w", encoding="utf-8") as f:
@@ -463,23 +475,28 @@ class UniversityDiscoveryAgent:
             f"- **Total Departments:** {len(departments)}",
             f"- **Departments with Data Quality Issues:** {len(departments_with_issues)}",
             f"- **Completion Rate:** {((len(departments) - len(departments_with_issues)) / len(departments) * 100):.1f}%"
-            if departments else "N/A",
+            if departments
+            else "N/A",
             "",
         ]
 
         if not departments_with_issues:
-            report_lines.extend([
-                "✅ **No data quality issues detected!**",
-                "",
-                "All departments have complete metadata and were successfully discovered.",
-            ])
+            report_lines.extend(
+                [
+                    "✅ **No data quality issues detected!**",
+                    "",
+                    "All departments have complete metadata and were successfully discovered.",
+                ]
+            )
         else:
-            report_lines.extend([
-                "## Departments with Data Quality Issues",
-                "",
-                "⚠️ The following departments have incomplete or inferred data:",
-                ""
-            ])
+            report_lines.extend(
+                [
+                    "## Departments with Data Quality Issues",
+                    "",
+                    "⚠️ The following departments have incomplete or inferred data:",
+                    "",
+                ]
+            )
 
             for dept in departments_with_issues:
                 report_lines.append(f"### {dept.name}")
@@ -496,13 +513,15 @@ class UniversityDiscoveryAgent:
 
                 report_lines.append("")
 
-            report_lines.extend([
-                "## Recommendations",
-                "",
-                "Consider manually verifying departments with data quality issues.",
-                "You can provide manual department data using `config/departments_fallback.json`.",
-                ""
-            ])
+            report_lines.extend(
+                [
+                    "## Recommendations",
+                    "",
+                    "Consider manually verifying departments with data quality issues.",
+                    "You can provide manual department data using `config/departments_fallback.json`.",
+                    "",
+                ]
+            )
 
         # Write report
         with open(output_path, "w", encoding="utf-8") as f:
@@ -512,7 +531,7 @@ class UniversityDiscoveryAgent:
             "Generated structure gap report",
             path=str(output_path),
             total_departments=len(departments),
-            departments_with_issues=len(departments_with_issues)
+            departments_with_issues=len(departments_with_issues),
         )
 
     def _get_flag_description(self, flag: str) -> str:
@@ -531,6 +550,6 @@ class UniversityDiscoveryAgent:
             "partial_metadata": "Some metadata fields are missing",
             "inference_based": "Information was inferred rather than directly scraped",
             "manual_entry": "Department was loaded from manual fallback configuration",
-            "scraping_failed": "Web scraping failed, using fallback strategy"
+            "scraping_failed": "Web scraping failed, using fallback strategy",
         }
         return descriptions.get(flag, "Unknown data quality issue")
