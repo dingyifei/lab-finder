@@ -4,6 +4,20 @@ Integration Test Configuration
 Provides fixtures and configuration for integration tests.
 When running in CI environment (CI=true), MCP servers are mocked to avoid
 requiring actual MCP server installations.
+
+IMPORTANT: The MCP client fixtures (mcp_papers_client, mcp_linkedin_client) should be
+used in integration tests that need to interact with MCP servers. These fixtures
+automatically provide mocked clients in CI environments (CI=true) and None in local
+environments (allowing tests to initialize real MCP clients).
+
+Example usage in tests:
+    async def test_with_mcp(mcp_papers_client):
+        if mcp_papers_client:  # CI environment
+            results = await mcp_papers_client.search_paper("query")
+        else:  # Local environment
+            from src.utils.mcp_client import initialize_real_client
+            client = await initialize_real_client()
+            results = await client.search_paper("query")
 """
 
 import os

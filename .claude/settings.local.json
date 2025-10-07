@@ -47,7 +47,8 @@
       "Bash(venv\\Scripts\\python.exe -m ruff check:*)",
       "Bash(venvScriptspython.exe -m pytest tests/unit/test_profile_consolidator.py -v --tb=short)",
       "Bash(if not exist \".github\\workflows\" mkdir \".github\\workflows\")",
-      "Bash(CI=true venv/Scripts/python.exe -m pytest tests/integration/ -v)"
+      "Bash(CI=true venv/Scripts/python.exe -m pytest tests/integration/ -v)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []

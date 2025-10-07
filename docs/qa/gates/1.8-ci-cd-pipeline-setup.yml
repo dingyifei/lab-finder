@@ -1,0 +1,87 @@
+# Quality Gate Decision - Story 1.8: CI/CD Pipeline Setup
+schema: 1
+story: "1.8"
+story_title: "CI/CD Pipeline Setup (Optional)"
+gate: CONCERNS
+status_reason: "Implementation is solid but has concerns around execution time guarantee (AC9) and unused MCP mocking fixtures. All critical functionality works, but sequential job execution may exceed 10-minute target under worst-case conditions."
+reviewer: "Quinn (Test Architect)"
+updated: "2025-10-06T00:00:00Z"
+
+waiver: { active: false }
+
+top_issues:
+  - id: "PERF-001"
+    severity: medium
+    finding: "Sequential execution (unit-tests → integration-tests) allows up to 13 minutes max (8+5), potentially exceeding AC9's <10 minute requirement"
+    suggested_action: "Monitor actual CI execution times. Consider removing sequential dependency if integration tests are fast enough with mocking"
+    suggested_owner: "dev"
+
+  - id: "TEST-001"
+    severity: medium
+    finding: "MCP mocking fixtures in conftest.py are well-designed but not used by current integration tests (test_mcp_servers.py tests actual launch, not MCP protocol)"
+    suggested_action: "Add integration tests that use mcp_papers_client and mcp_linkedin_client fixtures to validate mocking infrastructure, or document that current tests intentionally test launch not protocol"
+    suggested_owner: "dev"
+
+  - id: "TECH-DEBT-001"
+    severity: low
+    finding: "22 Python files need ruff formatting (pre-existing from Stories 1.1-1.7)"
+    suggested_action: "Run 'ruff format .' to format codebase before first CI run to prevent formatting check failures"
+    suggested_owner: "dev"
+
+evidence:
+  tests_reviewed: 15
+  risks_identified: 3
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8]  # All ACs covered
+    ac_gaps: [9]  # AC9 partially covered (timeouts added but sequential execution may exceed target)
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "No secrets exposed in workflow. Codecov token not required. MCP mocking prevents credential leakage in CI."
+  performance:
+    status: CONCERNS
+    notes: "Individual job timeouts added (5+5+8+5 min), but sequential dependency means worst-case 13 minutes. Actual execution likely faster due to caching and mocking."
+  reliability:
+    status: CONCERNS
+    notes: "MCP mocking infrastructure is excellent but not utilized by current tests. No retry logic for transient failures."
+  maintainability:
+    status: PASS
+    notes: "Clear workflow structure, comprehensive documentation, well-organized fixtures. Pip caching implemented. Artifact upload for debugging."
+
+recommendations:
+  immediate:
+    - action: "Format codebase with 'ruff format .' before first CI push"
+      refs: ["All 22 files identified in dev notes"]
+    - action: "Monitor first few CI runs to verify total execution time stays under 10 minutes"
+      refs: [".github/workflows/ci.yml"]
+
+  future:
+    - action: "Add integration tests that utilize mcp_papers_client and mcp_linkedin_client fixtures to validate CI mocking infrastructure"
+      refs: ["tests/integration/conftest.py", "tests/integration/test_mcp_servers.py"]
+    - action: "Consider removing 'needs: unit-tests' dependency if integration tests consistently run fast with mocking"
+      refs: [".github/workflows/ci.yml:112"]
+    - action: "Add retry logic for flaky network operations (ruff/mypy package downloads)"
+      refs: [".github/workflows/ci.yml"]
+
+refactoring_performed:
+  - file: ".github/workflows/ci.yml"
+    changes:
+      - "Added timeout-minutes to all 4 jobs (5, 5, 8, 5 minutes respectively)"
+      - "Added types-jsonschema to type-check job dependencies (fixes mypy error)"
+      - "Added artifact upload on test failures for debugging (unit-test-results, integration-test-results)"
+    why: "AC9 requires <10 min execution time, but no timeouts were configured. types-jsonschema was missing per dev notes. Artifact upload improves debuggability."
+    how: "Timeouts prevent runaway jobs and provide clear failure signal. types-jsonschema provides type stubs for jsonschema module used in validator."
+
+  - file: "tests/integration/conftest.py"
+    changes:
+      - "Added comprehensive docstring explaining fixture usage with code example"
+    why: "Fixtures were created but not used by current tests. Future test authors need clear guidance on how to use these fixtures."
+    how: "Added IMPORTANT section with example showing conditional usage based on CI environment detection."
+
+quality_score: 80
+# Calculation: 100 - (10 × 2 medium issues) = 80
+# Score reflects solid implementation with non-critical concerns that should be monitored
+
+expires: "2025-10-20T00:00:00Z"
+# 2-week freshness window - should be re-validated after first real CI runs

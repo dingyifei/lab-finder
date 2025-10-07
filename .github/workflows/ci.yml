@@ -10,6 +10,7 @@ jobs:
   lint:
     name: Linting (ruff)
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
@@ -41,6 +42,7 @@ jobs:
   type-check:
     name: Type Checking (mypy)
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
@@ -62,7 +64,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install mypy
+          pip install mypy types-jsonschema
 
       - name: Run mypy
         run: mypy src/
@@ -70,6 +72,7 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
 
@@ -102,9 +105,19 @@ jobs:
           file: ./coverage.xml
           fail_ci_if_error: false
 
+      - name: Upload test results on failure
+        uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: unit-test-results
+          path: |
+            coverage.xml
+            .coverage
+
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: unit-tests  # Run integration tests only if unit tests pass
     steps:
       - uses: actions/checkout@v4
@@ -142,3 +155,10 @@ jobs:
         run: pytest tests/integration/ -v
         env:
           CI: true  # Flag to enable MCP mocking in tests
+
+      - name: Upload test results on failure
+        uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: integration-test-results
+          path: pytest-logs/
