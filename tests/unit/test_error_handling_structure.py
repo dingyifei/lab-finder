@@ -477,7 +477,14 @@ class TestUniversityDiscoveryAgent:
         with open(fallback_path, "w") as f:
             json.dump(fallback_data, f)
 
-        with patch("httpx.AsyncClient") as mock_client:
+        with (
+            patch("httpx.AsyncClient") as mock_client,
+            patch(
+                "src.utils.web_scraper.WebScraper.fetch_with_playwright",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+        ):
             mock_response = Mock()
             mock_response.status_code = 404
             mock_response.raise_for_status = Mock(
@@ -514,7 +521,14 @@ class TestUniversityDiscoveryAgent:
         with open(fallback_path, "w") as f:
             json.dump(fallback_data, f)
 
-        with patch("httpx.AsyncClient") as mock_client:
+        with (
+            patch("httpx.AsyncClient") as mock_client,
+            patch(
+                "src.utils.web_scraper.WebScraper.fetch_with_playwright",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+        ):
             mock_get = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
             mock_client.return_value.__aenter__.return_value.get = mock_get
 
@@ -529,7 +543,14 @@ class TestUniversityDiscoveryAgent:
     @pytest.mark.asyncio
     async def test_discover_structure_error_no_fallback_raises(self, agent):
         """Test discovery re-raises error when no fallback available."""
-        with patch("httpx.AsyncClient") as mock_client:
+        with (
+            patch("httpx.AsyncClient") as mock_client,
+            patch(
+                "src.utils.web_scraper.WebScraper.fetch_with_playwright",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+        ):
             mock_response = Mock()
             mock_response.status_code = 404
             mock_response.raise_for_status = Mock(
@@ -541,5 +562,5 @@ class TestUniversityDiscoveryAgent:
             mock_get = AsyncMock(return_value=mock_response)
             mock_client.return_value.__aenter__.return_value.get = mock_get
 
-            with pytest.raises(httpx.HTTPStatusError):
+            with pytest.raises(ValueError, match="Failed to fetch"):
                 await agent.discover_structure("https://example.edu/notfound")

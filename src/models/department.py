@@ -21,26 +21,26 @@ class Department(BaseModel):
     """Represents a university department with metadata and quality tracking.
 
     Attributes:
-        id: Unique identifier (auto-generated UUID)
+        id: Unique identifier (auto-generated 8-char UUID)
         name: Department name
         school: Parent school/college (optional)
         division: Parent division (optional)
         url: Department homepage URL
         hierarchy_level: Depth in organizational tree (0 = top level)
-        is_relevant: Result of relevance filtering (Story 2.3)
-        relevance_reasoning: LLM explanation for relevance (Story 2.3)
         data_quality_flags: List of data quality issues from DATA_QUALITY_FLAGS
+        is_relevant: Whether department is relevant to user's research (Story 2.3)
+        relevance_reasoning: Explanation for relevance decision (Story 2.3)
     """
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex[:8])
     name: str
     school: Optional[str] = None
     division: Optional[str] = None
     url: str
     hierarchy_level: int = 0
+    data_quality_flags: list[str] = Field(default_factory=list)
     is_relevant: bool = False
     relevance_reasoning: str = ""
-    data_quality_flags: list[str] = Field(default_factory=list)
 
     def add_quality_flag(self, flag: str) -> None:
         """Add a data quality flag if it's valid and not already present.

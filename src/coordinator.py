@@ -198,7 +198,9 @@ class CLICoordinator:
         for batch_id in range(start_batch, total_batches):
             batch_departments = batches[batch_id]
             batch_start_idx = batch_id * batch_size
-            batch_end_idx = min(batch_start_idx + len(batch_departments), len(departments))
+            batch_end_idx = min(
+                batch_start_idx + len(batch_departments), len(departments)
+            )
 
             self.logger.info(
                 f"Processing batch {batch_id + 1} of {total_batches}",
@@ -220,9 +222,7 @@ class CLICoordinator:
             )
 
             # Process batch (placeholder - actual agent spawning will be implemented in Epic 2)
-            batch_results = self._process_department_batch(
-                batch_departments, batch_id
-            )
+            batch_results = self._process_department_batch(batch_departments, batch_id)
 
             # Save checkpoint after batch completion
             self.checkpoint_manager.save_batch(

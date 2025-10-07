@@ -116,7 +116,9 @@ class TestCLICoordinatorInitialization:
             config_path=str(config_file), checkpoint_dir=str(tmp_path / "checkpoints")
         )
 
-        assert coordinator.system_params.batch_config.department_discovery_batch_size == 5
+        assert (
+            coordinator.system_params.batch_config.department_discovery_batch_size == 5
+        )
         assert coordinator.checkpoint_manager is not None
         assert coordinator.progress_tracker is not None
         assert coordinator.correlation_id is not None
@@ -148,8 +150,12 @@ class TestCLICoordinatorInitialization:
             config_path=str(config_file), checkpoint_dir=str(tmp_path / "checkpoints")
         )
 
-        assert coordinator.system_params.batch_config.department_discovery_batch_size == 7
-        assert coordinator.system_params.batch_config.professor_discovery_batch_size == 12
+        assert (
+            coordinator.system_params.batch_config.department_discovery_batch_size == 7
+        )
+        assert (
+            coordinator.system_params.batch_config.professor_discovery_batch_size == 12
+        )
 
 
 class TestBatchProcessing:
@@ -256,9 +262,7 @@ class TestBatchProcessing:
             config_path=str(config_file), checkpoint_dir=str(tmp_path / "checkpoints")
         )
 
-        results = coordinator.process_departments_in_batches(
-            [], phase="empty-test"
-        )
+        results = coordinator.process_departments_in_batches([], phase="empty-test")
 
         assert results == []
 

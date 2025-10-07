@@ -33,7 +33,8 @@ import uuid
 from pathlib import Path
 from typing import Optional
 import structlog
-from structlog.types import BindableLogger, EventDict, WrappedLogger
+from structlog.stdlib import BoundLogger
+from structlog.types import EventDict, WrappedLogger
 
 
 def mask_credentials(
@@ -129,7 +130,7 @@ def get_logger(
     correlation_id: Optional[str] = None,
     phase: Optional[str] = None,
     component: Optional[str] = None,
-) -> BindableLogger:
+) -> BoundLogger:
     """
     Get structured logger with bound context.
 

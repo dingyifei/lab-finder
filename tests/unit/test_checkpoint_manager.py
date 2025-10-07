@@ -123,10 +123,12 @@ class TestCheckpointManager:
         # Arrange
         manager = CheckpointManager(checkpoint_dir=str(tmp_path))
 
-        batch1 = [SampleModel(id="1", name="Alice", value=100)]
-        batch2 = [SampleModel(id="2", name="Bob", value=200)]
-        batch3 = [SampleModel(id="3", name="Charlie", value=300)]
+        batch0 = [SampleModel(id="1", name="Alice", value=100)]
+        batch1 = [SampleModel(id="2", name="Bob", value=200)]
+        batch2 = [SampleModel(id="3", name="Charlie", value=300)]
+        batch3 = [SampleModel(id="4", name="David", value=400)]
 
+        manager.save_batch(phase="test-phase", batch_id=0, data=batch0)
         manager.save_batch(phase="test-phase", batch_id=1, data=batch1)
         manager.save_batch(phase="test-phase", batch_id=2, data=batch2)
         manager.save_batch(phase="test-phase", batch_id=3, data=batch3)
@@ -142,17 +144,17 @@ class TestCheckpointManager:
         # Arrange
         manager = CheckpointManager(checkpoint_dir=str(tmp_path))
 
-        batch1 = [SampleModel(id="1", name="Alice", value=100)]
-        batch3 = [SampleModel(id="3", name="Charlie", value=300)]
+        batch0 = [SampleModel(id="1", name="Alice", value=100)]
+        batch2 = [SampleModel(id="3", name="Charlie", value=300)]
 
-        manager.save_batch(phase="test-phase", batch_id=1, data=batch1)
-        manager.save_batch(phase="test-phase", batch_id=3, data=batch3)
+        manager.save_batch(phase="test-phase", batch_id=0, data=batch0)
+        manager.save_batch(phase="test-phase", batch_id=2, data=batch2)
 
         # Act
         resume_point = manager.get_resume_point(phase="test-phase")
 
         # Assert
-        assert resume_point == 2
+        assert resume_point == 1
 
     def test_mark_phase_complete_creates_marker(self, tmp_path):
         """Test that mark_phase_complete creates completion marker."""

@@ -1,5 +1,6 @@
 """University structure discovery agent with error handling and graceful degradation."""
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any, Optional
@@ -10,10 +11,12 @@ from tenacity import (
     retry_if_exception_type,
 )
 import httpx
+import uuid
 
 from src.models.department import Department
 from src.utils.logger import get_logger
 from src.utils.checkpoint_manager import CheckpointManager
+from src.utils.progress_tracker import ProgressTracker
 
 
 class ValidationResult:
@@ -212,20 +215,46 @@ class UniversityDiscoveryAgent:
         departments: list[Department] = []
 
         try:
-            # Attempt to fetch main page with retry logic
-            html_content = await self._fetch_page_with_retry(university_url)
+            # Import web scraper
+            from src.utils.web_scraper import WebScraper
+            from bs4 import BeautifulSoup
 
-            # Detect incomplete structure
-            # Note: issues would be used by actual scraping logic (Story 2.1)
-            _ = self._detect_incomplete_structure(html_content, university_url)
+            scraper = WebScraper(correlation_id=self.correlation_id, timeout=30)
 
-            # TODO: Actual scraping logic would go here
-            # For now, create placeholder to demonstrate error handling
-            # This would be implemented in Story 2.1
+            # Attempt to fetch main page with fallback
+            html_content, method_used = await scraper.fetch_with_fallback(
+                university_url
+            )
+
+            if html_content is None:
+                # All scraping methods failed
+                self.logger.error(
+                    "Failed to fetch university page",
+                    url=university_url,
+                    all_methods_failed=True,
+                )
+
+                # Try manual fallback
+                if manual_fallback_path:
+                    departments = self._load_manual_fallback(manual_fallback_path)
+                    if departments:
+                        return departments
+
+                raise ValueError(f"Failed to fetch {university_url} with all methods")
+
+            # Parse HTML
+            soup = scraper.parse_html(html_content)
+
+            # Extract department structure
+            departments = await self._extract_departments(
+                soup, university_url, method_used
+            )
+
             self.logger.info(
-                "HTML fetch successful",
+                "University structure discovery complete",
                 url=university_url,
-                content_length=len(html_content),
+                departments_found=len(departments),
+                scraping_method=method_used,
             )
 
         except httpx.HTTPStatusError as e:
@@ -283,6 +312,206 @@ class UniversityDiscoveryAgent:
             raise
 
         return departments
+
+    async def _extract_departments(
+        self, soup: Any, base_url: str, scraping_method: str
+    ) -> list[Department]:
+        """Extract department information from parsed HTML.
+
+        Args:
+            soup: BeautifulSoup parsed HTML
+            base_url: Base university URL for resolving relative links
+            scraping_method: Method used to fetch HTML (for logging)
+
+        Returns:
+            List of Department models
+        """
+        from urllib.parse import urljoin
+
+        departments: list[Department] = []
+        seen_urls: set[str] = set()
+
+        self.logger.info(
+            "Extracting departments from HTML",
+            base_url=base_url,
+            method=scraping_method,
+        )
+
+        # Strategy 1: Look for common department/school container patterns
+        # Common patterns: divs/sections with classes like "department", "school", "academic"
+        containers = soup.find_all(
+            ["div", "section", "article", "li"],
+            class_=lambda x: x
+            and any(
+                keyword in str(x).lower()
+                for keyword in [
+                    "department",
+                    "school",
+                    "college",
+                    "division",
+                    "academic",
+                    "faculty",
+                ]
+            ),
+        )
+
+        for container in containers:
+            # Look for links within the container
+            links = container.find_all("a", href=True)
+
+            for link in links:
+                dept_name = link.get_text(strip=True)
+                dept_url = urljoin(base_url, link["href"])
+
+                # Skip empty names or non-http URLs
+                if not dept_name or not dept_url.startswith(("http://", "https://")):
+                    continue
+
+                # Skip duplicate URLs
+                if dept_url in seen_urls:
+                    continue
+
+                seen_urls.add(dept_url)
+
+                # Try to extract hierarchy information
+                hierarchy_info = self._infer_hierarchy(container, dept_name)
+
+                # Create department
+                dept = Department(
+                    name=dept_name,
+                    school=hierarchy_info.get("school"),
+                    division=hierarchy_info.get("division"),
+                    url=dept_url,
+                    hierarchy_level=hierarchy_info.get("level", 0),
+                )
+
+                # Add quality flags for inferred data
+                if not hierarchy_info.get("school"):
+                    dept.add_quality_flag("missing_school")
+                    dept.school = "Unknown School"
+
+                if hierarchy_info.get("inferred"):
+                    dept.add_quality_flag("inference_based")
+
+                departments.append(dept)
+
+                self.logger.debug(
+                    "Extracted department",
+                    name=dept_name,
+                    url=dept_url,
+                    school=dept.school,
+                    level=dept.hierarchy_level,
+                )
+
+        # Strategy 2: Look for semantic HTML5 navigation or main sections
+        nav_sections = soup.find_all(["nav", "main"])
+        for section in nav_sections:
+            links = section.find_all("a", href=True)
+
+            for link in links:
+                dept_name = link.get_text(strip=True)
+                dept_url = urljoin(base_url, link["href"])
+
+                # Filter: Must contain keywords suggesting it's a department
+                if not any(
+                    keyword in dept_name.lower()
+                    for keyword in [
+                        "department",
+                        "school",
+                        "college",
+                        "division",
+                        "engineering",
+                        "science",
+                        "arts",
+                        "business",
+                        "medicine",
+                        "law",
+                    ]
+                ):
+                    continue
+
+                # Skip if already found
+                if dept_url in seen_urls:
+                    continue
+
+                if not dept_name or not dept_url.startswith(("http://", "https://")):
+                    continue
+
+                seen_urls.add(dept_url)
+
+                # Create department with minimal info
+                dept = Department(
+                    name=dept_name,
+                    school="Unknown School",
+                    url=dept_url,
+                    hierarchy_level=0,
+                )
+
+                dept.add_quality_flag("missing_school")
+                dept.add_quality_flag("inference_based")
+
+                departments.append(dept)
+
+                self.logger.debug(
+                    "Extracted department from navigation",
+                    name=dept_name,
+                    url=dept_url,
+                )
+
+        if not departments:
+            self.logger.warning(
+                "No departments extracted from HTML",
+                base_url=base_url,
+                html_length=len(str(soup)),
+            )
+
+        return departments
+
+    def _infer_hierarchy(self, container: Any, dept_name: str) -> dict:
+        """Infer hierarchy information from HTML container.
+
+        Args:
+            container: BeautifulSoup element containing department info
+            dept_name: Department name
+
+        Returns:
+            Dict with keys: school, division, level, inferred
+        """
+        hierarchy_info: dict = {
+            "school": None,
+            "division": None,
+            "level": 0,
+            "inferred": False,
+        }
+
+        # Look for parent elements with school/college information
+        parent = container.find_parent(
+            class_=lambda x: x
+            and any(keyword in str(x).lower() for keyword in ["school", "college"])
+        )
+
+        if parent:
+            # Try to extract school name from heading
+            heading = parent.find(["h1", "h2", "h3", "h4"])
+            if heading:
+                school_name = heading.get_text(strip=True)
+                hierarchy_info["school"] = school_name
+                hierarchy_info["level"] = 1  # Department under a school
+            else:
+                hierarchy_info["inferred"] = True
+        else:
+            hierarchy_info["inferred"] = True
+
+        # Check if this is a department or higher-level unit
+        if any(
+            keyword in dept_name.lower()
+            for keyword in ["school of", "college of", "faculty of"]
+        ):
+            hierarchy_info["level"] = 0  # Top level
+        elif "department" in dept_name.lower():
+            hierarchy_info["level"] = 2  # Department level
+
+        return hierarchy_info
 
     def _load_manual_fallback(self, fallback_path: Path) -> list[Department]:
         """Load departments from manual fallback configuration.
