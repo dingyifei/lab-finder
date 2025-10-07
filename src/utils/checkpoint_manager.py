@@ -31,6 +31,7 @@ Example Usage:
 import json
 import jsonlines
 from pathlib import Path
+from typing import Sequence
 from pydantic import BaseModel
 
 
@@ -50,7 +51,7 @@ class CheckpointManager:
             self.checkpoint_dir / "_phase_completion_markers.json"
         )
 
-    def save_batch(self, phase: str, batch_id: int, data: list[BaseModel]) -> None:
+    def save_batch(self, phase: str, batch_id: int, data: Sequence[BaseModel]) -> None:
         """
         Save batch data to JSONL checkpoint file.
 
@@ -109,17 +110,17 @@ class CheckpointManager:
 
     def get_resume_point(self, phase: str) -> int:
         """
-        Identify first missing batch number for a phase.
+        Identify first missing batch number for a phase (0-indexed).
 
         Args:
             phase: Phase identifier (e.g., "phase-2-professors")
 
         Returns:
-            First missing batch number. Returns 0 if no batches exist.
+            First missing batch number (0-indexed). Returns 0 if no batches exist.
 
         Example:
-            If batches 1, 2, 3 exist, returns 4.
-            If batches 1, 3 exist (2 is missing), returns 2.
+            If batches 0, 1, 2 exist, returns 3.
+            If batches 0, 2 exist (1 is missing), returns 1.
             If no batches exist, returns 0.
         """
         batch_files = list(self.checkpoint_dir.glob(f"{phase}-batch-*.jsonl"))
@@ -144,7 +145,7 @@ class CheckpointManager:
 
         # Find first gap in sequence
         for i, batch_num in enumerate(batch_numbers):
-            expected = i + 1  # Batches are 1-indexed
+            expected = i  # Batches are 0-indexed
             if batch_num != expected:
                 return expected
 

@@ -369,6 +369,78 @@ pytest -v
 - Integration tests
 - Coverage report upload
 
+## Configuration
+
+### Batch Processing Configuration
+
+Lab Finder uses configurable batch sizes to control parallel processing and resource usage. Batch configuration is defined in `config/system_params.json`:
+
+```json
+{
+  "batch_config": {
+    "department_discovery_batch_size": 5,
+    "professor_discovery_batch_size": 10,
+    "publication_retrieval_batch_size": 20,
+    "linkedin_matching_batch_size": 15
+  }
+}
+```
+
+**Batch Size Parameters:**
+
+- `department_discovery_batch_size` (default: 5) - Number of departments processed in parallel during university structure discovery
+- `professor_discovery_batch_size` (default: 10) - Number of professors filtered in parallel
+- `publication_retrieval_batch_size` (default: 20) - Number of publication queries processed concurrently
+- `linkedin_matching_batch_size` (default: 15) - Number of LinkedIn profile matches processed in parallel
+
+**Tuning Guidelines:**
+
+Increase batch size for **more parallelism** (faster processing):
+- Better for: Fast networks, powerful hardware, universities with many departments
+- Example (large university): `department_discovery_batch_size: 10`
+
+Decrease batch size to **reduce resource usage** (lower memory/CPU):
+- Better for: Slow networks, resource-constrained systems, rate limit concerns
+- Example (resource-constrained): `department_discovery_batch_size: 2`
+
+Small university (< 20 departments):
+```json
+{
+  "batch_config": {
+    "department_discovery_batch_size": 3
+  }
+}
+```
+
+Large university (> 100 departments):
+```json
+{
+  "batch_config": {
+    "department_discovery_batch_size": 10
+  }
+}
+```
+
+Resource-constrained environment:
+```json
+{
+  "batch_config": {
+    "department_discovery_batch_size": 2
+  }
+}
+```
+
+**Rate Limiting Warning:**
+
+⚠️ Very large batch sizes (> 20) may trigger rate limiting on target websites. If you encounter HTTP 429 errors or connection issues, reduce batch size.
+
+**Checkpointing and Resumability:**
+
+Batch processing automatically creates checkpoints after each batch completes:
+- Checkpoints saved to: `checkpoints/phase-1-departments-batch-{N}.jsonl`
+- Pipeline automatically resumes from last completed batch on restart
+- Progress tracking shows: `Phase 1: University Discovery [batch X/Y]`
+
 ## Requirements
 
 - Python 3.11.7

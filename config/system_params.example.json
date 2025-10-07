@@ -1,8 +1,9 @@
 {
-  "batch_sizes": {
-    "departments": 5,
-    "professors": 20,
-    "labs": 10
+  "batch_config": {
+    "department_discovery_batch_size": 5,
+    "professor_discovery_batch_size": 10,
+    "publication_retrieval_batch_size": 20,
+    "linkedin_matching_batch_size": 15
   },
   "rate_limits": {
     "archive_org": 30,

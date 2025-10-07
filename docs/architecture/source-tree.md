@@ -6,7 +6,7 @@ lab-finder/
 │   ├── config.schema.json           # JSON schema for main config
 │   ├── user-profile.json            # User's research profile
 │   ├── university.json              # Target university details
-│   ├── system-parameters.json       # Batch sizes, rate limits, etc.
+│   ├── system_params.json           # Batch sizes, rate limits, etc.
 │   └── .env                         # Credentials (LinkedIn, etc.)
 │
 ├── data/                            # Static data files
@@ -52,7 +52,7 @@ lab-finder/
 │   └── schemas/                     # JSON schemas for validation
 │       ├── user-profile.schema.json
 │       ├── university.schema.json
-│       └── system-parameters.schema.json
+│       └── system_params.schema.json
 │
 ├── tests/                           # Test suite
 │   ├── unit/                        # Unit tests

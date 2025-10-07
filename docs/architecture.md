@@ -494,6 +494,7 @@ These models represent the core domain entities flowing through the Lab Finder p
 - `division`: Optional[str] - Parent division
 - `url`: str - Department homepage URL
 - `hierarchy_level`: int - Depth in organizational tree (0=school, 1=division, 2=department)
+- `data_quality_flags`: list[str] - Quality issues (e.g., "missing_url", "missing_school", "ambiguous_hierarchy", "partial_metadata", "inference_based", "manual_entry", "scraping_failed")
 - `is_relevant`: bool - Result of relevance filtering (FR9)
 - `relevance_reasoning`: str - LLM explanation for filter decision
 
@@ -679,347 +680,485 @@ These models represent the core domain entities flowing through the Lab Finder p
 
 ## Agent Definitions
 
-This section provides the complete `AgentDefinition` implementations for all Lab Finder agents. Each agent is configured with a specific description, detailed prompt, tool restrictions, and model selection.
+**IMPORTANT CLARIFICATION:** The Claude Agent SDK does NOT have an `AgentDefinition` class or sub-agent spawning mechanism. This section describes the **conceptual agent responsibilities and prompting strategies** using the actual Claude Agent SDK `query()` function.
 
-### Phase 0: Configuration Validator Agent
+All "agents" in this architecture are **application-level Python modules** that use the Claude Agent SDK's `query()` function with appropriate prompts and tool configurations. Parallel execution is achieved using Python's `asyncio.gather()`, NOT SDK-provided sub-agent spawning.
 
-```python
-config_validator = AgentDefinition(
-    description="Validates JSON configurations and consolidates user profile",
-    prompt="""Phase 0: Configuration Validation & Profile Consolidation
+### Actual Claude Agent SDK Pattern
 
-Your task: Validate all configuration files and create consolidated user profile
-
-Steps:
-1. Validate each config file against JSON schemas in src/schemas/
-2. Load or prompt for LinkedIn credentials from .env
-3. Use LLM to summarize resume into key highlights
-4. Streamline research interests into clear statements
-5. Save consolidated profile: checkpoints/phase-0-validation.json
-
-Output format (JSON):
-{
-  "name": "...",
-  "target_university": "...",
-  "target_department": "...",
-  "research_interests": [...],
-  "resume_highlights": {...},
-  "preferred_graduation_duration": 5.5
-}
-""",
-    tools=["Read", "Write"],
-    model="sonnet"
-)
-```
-
-### Phase 1: University Structure Discovery Agent
+Lab Finder uses the Claude Agent SDK's **`query()` function** for all Claude interactions:
 
 ```python
-university_discovery = AgentDefinition(
-    description="Discovers and filters university department structure",
-    prompt="""Phase 1: University Structure Discovery
+from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage, TextBlock
 
-Your task: Discover and filter relevant departments
+# Example: Professor discovery for a single department
+async def discover_professors_for_department(department: Department) -> list[Professor]:
+    """
+    Application-level function that uses Claude Agent SDK query().
+    This is NOT an AgentDefinition - that doesn't exist in the SDK.
+    """
+    options = ClaudeAgentOptions(
+        allowed_tools=["WebFetch", "WebSearch"],
+        max_turns=3,
+        system_prompt="You are a web scraping assistant specialized in extracting professor information."
+    )
 
-Steps:
-1. Scrape university website for organizational structure
-   - Try WebFetch first (fast for static pages)
-   - If fails, use Bash to invoke Playwright script
-2. Extract hierarchy: school → division → department
-3. Filter departments by relevance to target_department
-4. Save results to: checkpoints/phase-1-departments.jsonl
+    prompt = f"""
+    Scrape the professor directory at: {department.url}
 
-Output format (JSONL):
-{"id": "dept-001", "name": "Computer Science", "school": "Engineering",
- "url": "...", "is_relevant": true, "relevance_reasoning": "..."}
-""",
-    tools=["WebFetch", "Bash", "Read", "Write", "Glob"],
-    model="sonnet"
-)
+    Extract ALL professors with the following information:
+    - Full name
+    - Title (Professor, Associate Professor, etc.)
+    - Research areas/interests
+    - Lab name and URL (if available)
+    - Email address
+
+    Return results as a JSON array.
+    """
+
+    professors_data = []
+    async for message in query(prompt=prompt, options=options):
+        if isinstance(message, AssistantMessage):
+            for block in message.content:
+                if isinstance(block, TextBlock):
+                    # Parse JSON response from Claude
+                    professors_data.extend(parse_professor_data(block.text))
+
+    return convert_to_professor_models(professors_data, department)
 ```
 
-### Phase 2: Professor Discovery Agent
+**Parallel Execution** is achieved at the application level using `asyncio.gather()`:
 
 ```python
-professor_discovery = AgentDefinition(
-    description="Discovers professors from department directories",
-    prompt="""Phase 2A: Professor Discovery
+import asyncio
 
-Your task: Scrape professor directories from departments
+# Application-level parallel processing (NOT an SDK feature)
+async def discover_professors_parallel(departments: list[Department]) -> list[Professor]:
+    """
+    Parallel execution using Python asyncio, NOT Claude Agent SDK sub-agents.
+    """
+    # Create tasks for each department
+    tasks = [discover_professors_for_department(dept) for dept in departments]
 
-Steps:
-1. For each department from Phase 1 checkpoint:
-   - Scrape professor directory page (WebFetch primary, Playwright fallback)
-   - Extract: name, title, email, research areas, lab name/URL
-2. Save batch results: checkpoints/phase-2-professors-batch-N.jsonl
+    # Execute in parallel with asyncio.gather()
+    results = await asyncio.gather(*tasks, return_exceptions=True)
 
-Output format (JSONL):
-{"id": "prof-001", "name": "Dr. Jane Smith", "department_id": "dept-001",
- "lab_name": "Vision Lab", "lab_url": "...", "research_areas": [...]}
+    # Flatten results
+    all_professors = []
+    for result in results:
+        if isinstance(result, Exception):
+            logger.error("Department failed", error=str(result))
+            continue
+        all_professors.extend(result)
 
-Process in batches of 20 professors per checkpoint.
-""",
-    tools=["WebFetch", "Bash", "Read", "Write", "Glob"],
-    model="sonnet"
-)
+    return all_professors
 ```
 
-### Phase 2: Professor Filter Agent
+---
 
+### Phase 0: Configuration Validator
+
+**Responsibility:** Validates JSON configurations and consolidates user profile
+
+**Implementation:** Python module `src/agents/validator.py`
+
+**Claude SDK Usage:**
 ```python
-professor_filter = AgentDefinition(
-    description="Filters professors by research field alignment using LLM",
-    prompt="""Phase 2B: Professor Filtering
+async def consolidate_profile(configs: dict) -> UserProfile:
+    """Uses Claude to summarize resume and streamline research interests."""
+    options = ClaudeAgentOptions(
+        allowed_tools=["Read", "Write"],
+        max_turns=2
+    )
 
-Your task: Filter professors by research field match with user interests
+    prompt = f"""
+    Consolidate the following user information into a research profile:
+    Resume: {configs['resume']}
+    Research Interests: {configs['interests']}
 
-Context: You receive user profile and professor list from checkpoints
+    Output as JSON with fields: name, research_interests (list), resume_highlights (dict)
+    """
 
-Steps:
-1. For each professor batch:
-   - Compare research_areas against user research_interests
-   - Provide confidence score (0-100)
-   - Provide reasoning for inclusion/exclusion
-2. Update professor records with filter results
-3. Save filtered batch: checkpoints/phase-2-filtered-batch-N.jsonl
+    async for message in query(prompt=prompt, options=options):
+        # Parse consolidated profile
+        pass
 
-Output format (JSONL):
-{"id": "prof-001", "is_filtered": false, "filter_confidence": 95.0,
- "filter_reasoning": "Strong alignment with CV and ML interests", ...}
-
-Only pass professors with filter_confidence >= 75.
-""",
-    tools=["Read", "Write"],
-    model="sonnet"
-)
+    # Save to checkpoints/phase-0-validation.json
 ```
 
-### Phase 3: Lab Scraper Agent
+**Key Tasks:**
+1. Validate config files against JSON schemas
+2. Load/prompt for credentials via CredentialManager
+3. Use Claude SDK `query()` to summarize resume
+4. Save consolidated profile to checkpoint
 
+---
+
+### Phase 1: University Structure Discovery
+
+**Responsibility:** Discovers and filters university department structure
+
+**Implementation:** Python module `src/agents/university_discovery.py`
+
+**Claude SDK Usage:**
 ```python
-lab_scraper = AgentDefinition(
-    description="Scrapes lab websites and checks Archive.org history",
-    prompt="""Phase 3A: Lab Website Intelligence
+async def discover_structure(university_url: str) -> list[Department]:
+    """Scrape university structure using WebFetch."""
+    options = ClaudeAgentOptions(
+        allowed_tools=["WebFetch", "Bash", "Read", "Write"],
+        max_turns=5
+    )
 
-Your task: Scrape lab websites and analyze freshness
+    prompt = f"""
+    Scrape {university_url} to discover all academic departments.
+    Extract: school name, division name, department name, department URL, hierarchy level.
+    Return as JSONL format.
+    """
 
-Steps:
-1. For each filtered professor with lab_url:
-   - Scrape lab website (WebFetch primary, Playwright fallback)
-   - Extract: description, members, contact info
-   - Check last-modified header
-   - Query Archive.org API for snapshot history using httpx
-2. Analyze update frequency: monthly/yearly/stale
-3. Save results: checkpoints/phase-3-labs-batch-N.jsonl
+    async for message in query(prompt=prompt, options=options):
+        # Extract department data from response
+        pass
 
-Output format (JSONL):
-{"id": "lab-001", "pi_id": "prof-001", "description": "...",
- "last_updated": "2024-09-15", "wayback_history": [...],
- "update_frequency": "monthly", "members": [...]}
+    # Fallback to Playwright if WebFetch insufficient
+    if not departments:
+        departments = await scrape_with_playwright(university_url)
 
-Flag missing websites in data_quality_flags.
-""",
-    tools=["WebFetch", "Bash", "Read", "Write", "Glob"],
-    model="sonnet"
-)
+    # Save to checkpoints/phase-1-departments.jsonl
 ```
 
-### Phase 3: Publication Retrieval Agent
-
+**Filtering:**
 ```python
-publication_agent = AgentDefinition(
-    description="Retrieves publications via paper-search-mcp and analyzes relevance",
-    prompt="""Phase 3B: Publication Retrieval & Analysis
+async def filter_departments(departments: list[Department], user_profile: UserProfile) -> list[Department]:
+    """Use Claude to filter relevant departments."""
+    options = ClaudeAgentOptions(max_turns=1)
 
-Your task: Fetch publications and assess relevance
+    prompt = f"""
+    User Research Interests: {user_profile.research_interests}
+    Departments: {[d.name for d in departments]}
 
-Steps:
-1. For each filtered professor:
-   - Query paper-search-mcp MCP server
-   - Search format: "author:Professor Name affiliation:University"
-   - Retrieve last 3 years of publications
-2. For each publication:
-   - Analyze abstract against user research interests
-   - Assign relevance score (0-100)
-   - Lookup journal SJR score from data/scimago-journal-rank.csv
-3. Save results: checkpoints/phase-3-publications-batch-N.jsonl
+    Filter to only departments relevant to the user's research. Return department names as JSON array.
+    """
 
-Output format (JSONL):
-{"id": "10.1234/example", "title": "...", "authors": [...],
- "journal": "...", "year": 2024, "relevance_score": 92.5,
- "journal_sjr_score": 1.85, "pi_author_position": "last"}
-
-Use MCP tool: mcp__papers__search_papers
-""",
-    tools=["mcp__papers__search_papers", "Read", "Write", "Glob"],
-    model="sonnet"
-)
+    async for message in query(prompt=prompt, options=options):
+        # Parse filtered department names
+        pass
 ```
 
-### Phase 3: Member Inference Agent
+---
 
+### Phase 2: Professor Discovery & Filter
+
+**Responsibility:** Discover professors, filter by research field alignment
+
+**Implementation:** Python module `src/agents/professor_filter.py`
+
+**Parallel Discovery (Application-Level):**
 ```python
-member_inference = AgentDefinition(
-    description="Infers lab members from co-authorship when website unavailable",
-    prompt="""Phase 3C: Lab Member Inference
+async def discover_professors_parallel(departments: list[Department], max_concurrent: int = 5) -> list[Professor]:
+    """
+    Parallel professor discovery using asyncio.Semaphore.
+    NOT a Claude Agent SDK feature - this is pure Python async.
+    """
+    semaphore = asyncio.Semaphore(max_concurrent)
 
-Your task: Infer members from publication co-authorship patterns
+    async def process_with_semaphore(dept: Department) -> list[Professor]:
+        async with semaphore:
+            return await discover_professors_for_department(dept)
 
-Steps:
-1. For labs with missing member lists:
-   - Load PI publications from Phase 3B checkpoint
-   - Identify frequent co-authors (3+ papers in 3 years)
-   - Use LLM to validate same university affiliation
-2. Create inferred member records:
-   - Mark is_inferred=true
-   - Assign inference_confidence score
-3. Save results: checkpoints/phase-3-inferred-members.jsonl
+    tasks = [process_with_semaphore(dept) for dept in departments]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
 
-Output format (JSONL):
-{"id": "member-001", "lab_id": "lab-001", "name": "Alice Cooper",
- "role": "PhD Student", "is_inferred": true,
- "inference_confidence": 85.0, "entry_year": null}
-
-Flag in data_quality_flags: "members_inferred_from_coauthorship"
-""",
-    tools=["Read", "Write"],
-    model="sonnet"
-)
+    return flatten_results(results)
 ```
 
-### Phase 4: LinkedIn Matcher Agent
-
+**Single Department Discovery:**
 ```python
-linkedin_matcher = AgentDefinition(
-    description="Matches lab members to LinkedIn profiles via MCP",
-    prompt="""Phase 4: LinkedIn Profile Matching & PhD Detection
+async def discover_professors_for_department(department: Department) -> list[Professor]:
+    """Use Claude SDK WebFetch to scrape professor directory."""
+    options = ClaudeAgentOptions(
+        allowed_tools=["WebFetch", "WebSearch"],
+        max_turns=3
+    )
 
-Your task: Match members to LinkedIn and detect graduating PhDs
+    prompt = f"Scrape {department.url} and extract all professor information..."
 
-Steps:
-1. For each lab member (from website or inferred):
-   - Search LinkedIn via: mcp__linkedin__search_people
-   - Query: member name + university + department
-   - LLM-match best profile considering name variants, affiliation
-2. Retrieve profile details: mcp__linkedin__get_profile
-   - Extract education start dates
-   - Calculate expected graduation: entry_year + graduation_duration
-   - Flag if graduating within 1 year
-3. Save results: checkpoints/phase-4-linkedin-batch-N.jsonl
-
-Output format (JSONL):
-{"id": "member-001", "linkedin_profile_url": "...",
- "linkedin_match_confidence": 95.0, "entry_year": 2020,
- "expected_graduation_year": 2025, "is_graduating_soon": true}
-
-Use MCP tools: mcp__linkedin__search_people, mcp__linkedin__get_profile
-MCP server handles rate limiting; parallel execution safe.
-""",
-    tools=["mcp__linkedin__search_people", "mcp__linkedin__get_profile", "Read", "Write"],
-    model="sonnet"
-)
+    try:
+        async for message in query(prompt=prompt, options=options):
+            # Parse professor data
+            pass
+    except Exception:
+        # Fallback to Playwright
+        return await discover_with_playwright_fallback(department)
 ```
 
-### Phase 5: Authorship Analyzer
-
+**Filtering (Story 3.2 - separate implementation):**
 ```python
-authorship_analyzer = AgentDefinition(
-    description="Analyzes publication authorship patterns and collaboration role",
-    prompt="""Phase 5A: Authorship Analysis
+async def filter_professor_by_research(professor: Professor, user_profile: UserProfile) -> FilterResult:
+    """LLM-based research field filtering."""
+    options = ClaudeAgentOptions(max_turns=1)
 
-Your task: Analyze authorship patterns and assess collaboration role
+    prompt = f"""
+    Professor Research Areas: {professor.research_areas}
+    User Interests: {user_profile.research_interests}
 
-Steps:
-1. For each lab with publications:
-   - Calculate PI author position distribution (first/last/middle %)
-   - Identify external collaborators (non-university co-authors)
-   - Count collaboration frequency and recency
-2. Use LLM to assess core vs. collaborator role:
-   - Consider field norms (last author = PI in CS/bio)
-   - Analyze author position patterns
-   - Provide reasoning
-3. Save results: checkpoints/phase-5-authorship.jsonl
+    Confidence score (0-100) for research field match and reasoning.
+    """
 
-Output format (JSONL):
-{"lab_id": "lab-001", "pi_first_author_pct": 45.0,
- "pi_last_author_pct": 50.0, "pi_middle_author_pct": 5.0,
- "collaboration_role": "Core researcher with occasional collaborations",
- "collaborators": [...]}
-""",
-    tools=["Read", "Write"],
-    model="sonnet"
-)
+    async for message in query(prompt=prompt, options=options):
+        # Parse confidence score and reasoning
+        pass
 ```
 
-### Phase 5: Fitness Scoring Engine
+---
 
+### Phase 3: Lab Website Intelligence
+
+**Responsibility:** Scrape lab websites, check Archive.org history
+
+**Implementation:** Python module `src/agents/lab_intelligence.py`
+
+**Claude SDK Usage:**
 ```python
-fitness_scorer = AgentDefinition(
-    description="LLM-driven multi-factor fitness scoring of labs",
-    prompt="""Phase 5B: Fitness Scoring
+async def scrape_lab_website(lab_url: str) -> LabWebsiteData:
+    """Scrape lab website with WebFetch primary, Playwright fallback."""
+    options = ClaudeAgentOptions(
+        allowed_tools=["WebFetch"],
+        max_turns=2
+    )
 
-Your task: Score labs using LLM-identified criteria
+    prompt = f"""
+    Scrape {lab_url} and extract:
+    - Lab description
+    - Lab members (names, roles)
+    - Contact information
+    - Last update indicators
+    """
 
-Steps:
-1. Analyze user profile to identify scoring criteria and weights:
-   - Research alignment (typically 40% weight)
-   - Publication quality (typically 30%)
-   - Position availability (typically 20%)
-   - Website freshness (typically 10%)
-   - Other user-specific criteria
-2. For each lab:
-   - Score each criterion (0-100)
-   - Calculate weighted overall score
-   - Provide scoring rationale and key highlights
-   - Assign priority tier (1=top, 2=strong, 3=consider)
-3. Sort labs by overall_score descending
-4. Save results: checkpoints/phase-5-scores.jsonl
+    try:
+        async for message in query(prompt=prompt, options=options):
+            # Extract lab data
+            pass
+    except Exception:
+        # Playwright fallback
+        return await scrape_with_playwright(lab_url)
 
-Output format (JSONL):
-{"lab_id": "lab-001", "overall_score": 88.5,
- "criteria_scores": {...}, "criteria_weights": {...},
- "scoring_rationale": "...", "priority_recommendation": 1}
-""",
-    tools=["Read", "Write"],
-    model="sonnet"
-)
+    # Archive.org check via httpx (not Claude SDK)
+    wayback_history = await check_archive_org(lab_url)
 ```
 
-### Phase 6: Report Generator
+---
 
+### Phase 3B: Publication Retrieval
+
+**Responsibility:** Retrieve publications via paper-search-mcp MCP server
+
+**Implementation:** Python module `src/agents/publication_retrieval.py`
+
+**MCP Server Configuration:**
 ```python
-report_generator = AgentDefinition(
-    description="Generates Overview.md and detailed lab reports",
-    prompt="""Phase 6: Report Generation
-
-Your task: Generate markdown reports
-
-Steps:
-1. Load all checkpoint data (labs, scores, publications, members)
-2. Create Overview.md:
-   - Ranked list of all labs with overall scores
-   - Comparison matrix for top 10 labs
-   - Data quality summary
-3. For each lab, create detailed report labs/{lab-name}.md:
-   - PI info and lab description
-   - Research focus and recent publications
-   - Lab members with LinkedIn profiles
-   - Graduating PhD indicators
-   - Contact information
-   - Data quality flags (⚠️ markers)
-4. Save to output/ directory
-
-Use markdown tables, bullet lists, and headers for readability.
-Flag all missing/inferred data with ⚠️ warnings.
-""",
-    tools=["Read", "Write", "Glob"],
-    model="sonnet"
+options = ClaudeAgentOptions(
+    mcp_servers={
+        "papers": {
+            "type": "stdio",
+            "command": "npx",
+            "args": ["-y", "paper-search-mcp"]
+        }
+    },
+    allowed_tools=["mcp__papers__search_papers", "Read", "Write"]
 )
+
+async def fetch_publications(professor: Professor) -> list[Publication]:
+    """Query paper-search-mcp MCP server for publications."""
+    prompt = f"""
+    Use mcp__papers__search_papers to find publications for:
+    Author: {professor.name}
+    Affiliation: {professor.department_name}
+    Years: Last 3 years
+
+    Return publication metadata.
+    """
+
+    async for message in query(prompt=prompt, options=options):
+        # Parse publication data
+        pass
 ```
+
+**Abstract Analysis:**
+```python
+async def analyze_abstract_relevance(publication: Publication, user_profile: UserProfile) -> float:
+    """LLM analyzes abstract for research alignment."""
+    options = ClaudeAgentOptions(max_turns=1)
+
+    prompt = f"""
+    Abstract: {publication.abstract}
+    User Interests: {user_profile.research_interests}
+
+    Relevance score (0-100).
+    """
+
+    async for message in query(prompt=prompt, options=options):
+        # Extract relevance score
+        pass
+```
+
+---
+
+### Phase 4: LinkedIn Integration
+
+**Responsibility:** Match lab members to LinkedIn profiles via mcp-linkedin
+
+**Implementation:** Python module `src/agents/linkedin_matcher.py`
+
+**MCP Server Configuration:**
+```python
+options = ClaudeAgentOptions(
+    mcp_servers={
+        "linkedin": {
+            "type": "stdio",
+            "command": "npx",
+            "args": ["-y", "mcp-linkedin"]
+        }
+    },
+    allowed_tools=["mcp__linkedin__search_people", "mcp__linkedin__get_profile"]
+)
+
+async def match_linkedin_profile(member: LabMember, university: str) -> LinkedInMatch:
+    """Search and match LinkedIn profile."""
+    prompt = f"""
+    Use mcp__linkedin__search_people to find profile for:
+    Name: {member.name}
+    University: {university}
+    Department: {member.department}
+
+    Then use mcp__linkedin__get_profile to get education details.
+    Assess match confidence (0-100).
+    """
+
+    async for message in query(prompt=prompt, options=options):
+        # Parse match results
+        pass
+```
+
+**Note:** The mcp-linkedin MCP server handles authentication and rate limiting internally. Parallel execution is safe - the application can call multiple LinkedIn queries concurrently.
+
+---
+
+### Phase 5: Authorship Analysis & Fitness Scoring
+
+**Responsibility:** Analyze authorship patterns, score labs
+
+**Implementation:** Python modules `src/agents/authorship_analyzer.py` and `src/agents/fitness_scorer.py`
+
+**Authorship Analysis:**
+```python
+async def analyze_authorship(lab: Lab, publications: list[Publication]) -> AuthorshipAnalysis:
+    """LLM analyzes authorship patterns for core vs. collaborator role."""
+    options = ClaudeAgentOptions(max_turns=1)
+
+    prompt = f"""
+    PI: {lab.pi_name}
+    Publications: {format_publications(publications)}
+
+    Calculate:
+    - PI first author percentage
+    - PI last author percentage
+    - Core vs. collaborator role assessment (considering field norms)
+
+    Return as JSON.
+    """
+
+    async for message in query(prompt=prompt, options=options):
+        # Parse authorship analysis
+        pass
+```
+
+**Fitness Scoring:**
+```python
+async def identify_scoring_criteria(user_profile: UserProfile) -> dict[str, float]:
+    """LLM dynamically identifies scoring criteria and weights."""
+    options = ClaudeAgentOptions(max_turns=1)
+
+    prompt = f"""
+    User Profile: {user_profile}
+
+    Identify appropriate fitness scoring criteria and weights for lab matching.
+    Typical criteria: research alignment, publication quality, position availability, website freshness.
+
+    Return as JSON with criteria names as keys and weights (0-1) as values.
+    """
+
+    async for message in query(prompt=prompt, options=options):
+        # Parse criteria and weights
+        pass
+
+
+async def score_lab(lab: Lab, criteria: dict, user_profile: UserProfile) -> FitnessScore:
+    """Score lab against identified criteria."""
+    options = ClaudeAgentOptions(max_turns=2)
+
+    prompt = f"""
+    Lab: {lab.pi_name} - {lab.research_focus}
+    Criteria: {criteria}
+    User Profile: {user_profile}
+
+    Score this lab (0-100) for each criterion.
+    Calculate weighted overall score.
+    Provide scoring rationale and priority recommendation (1=top, 2=strong, 3=consider).
+
+    Return as JSON.
+    """
+
+    async for message in query(prompt=prompt, options=options):
+        # Parse fitness score
+        pass
+```
+
+---
+
+### Phase 6: Report Generation
+
+**Responsibility:** Generate Overview.md and detailed lab reports
+
+**Implementation:** Python module `src/agents/report_generator.py`
+
+**Report Generation (primarily Python, minimal Claude SDK usage):**
+```python
+def generate_overview(ranked_labs: list[FitnessScore]) -> str:
+    """Generate Overview.md with ranked labs and comparison matrix."""
+    # Pure Python markdown generation
+    overview = "# Lab Finder Results\n\n"
+    overview += generate_ranked_list(ranked_labs)
+    overview += generate_comparison_matrix(ranked_labs[:10])
+    return overview
+
+
+def generate_lab_report(lab: Lab, score: FitnessScore) -> str:
+    """Generate detailed individual lab report."""
+    # Pure Python markdown generation
+    report = f"# {lab.pi_name} - {lab.lab_name}\n\n"
+    report += generate_lab_sections(lab, score)
+    report += flag_data_quality_issues(lab)
+    return report
+```
+
+---
+
+### Summary: No AgentDefinition in Claude Agent SDK
+
+**Key Points:**
+1. **Claude Agent SDK provides `query()` and `ClaudeSDKClient()`** - NOT `AgentDefinition`
+2. **All "agents" are application-level Python modules** that call `query()` with appropriate prompts
+3. **Parallel execution uses Python `asyncio.gather()`** - NOT SDK-provided sub-agent spawning
+4. **Correlation IDs are application-managed** - passed as function parameters and bound to logger
+5. **WebFetch/Playwright fallback is application-level** - Claude SDK tools don't auto-fallback
+
+For complete implementation examples, see Story 3.1 Dev Notes which provide full code patterns for using the Claude Agent SDK correctly.
 
 ## Components
 
-This section defines the major logical components/services and their responsibilities. Each component maps to one or more Python modules and may spawn Claude Agent SDK sub-agents for parallel processing.
+**IMPORTANT:** Claude Agent SDK does NOT have `AgentDefinition` or sub-agent spawning. All components use the SDK's `query()` function with appropriate prompts.
+
+This section defines the major logical components/services and their responsibilities. Each component is a Python module that uses Claude Agent SDK's `query()` function. Parallel execution is achieved using Python's `asyncio.gather()`, NOT SDK-provided mechanisms.
 
 ### CLI Coordinator
 
@@ -1812,7 +1951,7 @@ lab-finder/
 │   ├── config.schema.json           # JSON schema for main config
 │   ├── user-profile.json            # User's research profile
 │   ├── university.json              # Target university details
-│   ├── system-parameters.json       # Batch sizes, rate limits, etc.
+│   ├── system_params.json           # Batch sizes, rate limits, etc.
 │   └── .env                         # Credentials (LinkedIn, etc.)
 │
 ├── data/                            # Static data files
@@ -1858,7 +1997,7 @@ lab-finder/
 │   └── schemas/                     # JSON schemas for validation
 │       ├── user-profile.schema.json
 │       ├── university.schema.json
-│       └── system-parameters.schema.json
+│       └── system_params.schema.json
 │
 ├── tests/                           # Test suite
 │   ├── unit/                        # Unit tests
@@ -2625,7 +2764,7 @@ This section documents architectural risks and mitigation strategies based on Cl
 **Risk:** Web scraping and LinkedIn access may trigger rate limits or account blocks
 
 **Mitigation Strategies:**
-- Implement aiolimiter for per-domain rate limiting (configurable in system-parameters.json)
+- Implement aiolimiter for per-domain rate limiting (configurable in system_params.json)
 - Use mcp-linkedin server's internal rate limiting (no application queue needed)
 - Exponential backoff retry logic (tenacity library) for failed requests
 - Batch processing with configurable delays between batches
@@ -2682,7 +2821,7 @@ This architecture document is ready for development. The recommended next steps 
 **Schemas to Create:**
 - `src/schemas/user-profile.schema.json` - User research profile
 - `src/schemas/university.schema.json` - University details
-- `src/schemas/system-parameters.schema.json` - Batch sizes, rate limits, etc.
+- `src/schemas/system_params.schema.json` - Batch sizes, rate limits, etc.
 
 **Validation:** Test schemas with sample config files from `tests/fixtures/`
 
