@@ -1,0 +1,22 @@
+{
+  "batch_sizes": {
+    "departments": 5,
+    "professors": 20,
+    "labs": 10
+  },
+  "rate_limits": {
+    "archive_org": 30,
+    "linkedin": 10,
+    "paper_search": 20
+  },
+  "timeouts": {
+    "web_scraping": 30,
+    "mcp_query": 60
+  },
+  "confidence_thresholds": {
+    "professor_filter": 70.0,
+    "linkedin_match": 75.0
+  },
+  "publication_years": 3,
+  "log_level": "INFO"
+}

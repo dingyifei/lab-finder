@@ -353,7 +353,63 @@ so that **the system has clear baseline for matching me with relevant labs**.
 
 **Goal:** Automatically discover and map the target university's complete department hierarchy (schools, divisions, departments), represent it in JSON format for sub-agent delegation, and filter out irrelevant departments before professor discovery. This epic delivers a validated department structure that optimizes subsequent processing.
 
-#### Story 2.1: University Website Structure Discovery
+**Execution Model:** Three-phase approach with parallel execution in Phase 1 and Phase 3 for ~33% timeline reduction
+
+**Timeline:** ~7 days (vs. 10.5 days sequential)
+
+**Phase Flow:**
+- **Phase 1 (Parallel):** Infrastructure setup (Stories 2.4 || 2.5) - ~2 days
+- **Phase 2 (Sequential):** Core discovery (Story 2.1) - ~3 days
+- **Phase 3 (Parallel):** Post-processing (Stories 2.2 || 2.3) - ~2 days
+
+---
+
+#### Phase 1: Infrastructure Setup (PARALLEL)
+
+##### Story 2.4: Error Handling for Missing Structure Data
+
+As a **user**,
+I want **the system to handle cases where department structure is unclear or incomplete**,
+so that **analysis continues with graceful degradation instead of failing**.
+
+**Acceptance Criteria:**
+1. System identifies when structure discovery is incomplete or ambiguous (NFR13)
+2. User notified of structure gaps with specific details
+3. Partial structure data saved and used where available
+4. Fallback: Process all discoverable departments even if hierarchy unclear
+5. Data quality issues flagged in output (FR32)
+6. Detailed logging of what couldn't be discovered (NFR17)
+
+**Execution Dependencies:**
+- **Can Start After:** Epic 1 complete (specifically Story 1.4 for shared utilities)
+- **Parallel Execution:** Can run in parallel with Story 2.5
+- **Blocks:** Story 2.1 (provides error handling infrastructure)
+- **Provides:** Data quality flags, retry logic, graceful degradation patterns, error logging infrastructure
+
+##### Story 2.5: Batch Configuration for Department Processing
+
+As a **user**,
+I want **department processing configured to run in reasonable batches**,
+so that **the system doesn't overwhelm resources with parallel operations**.
+
+**Acceptance Criteria:**
+1. Configurable batch size for parallel department processing (NFR4)
+2. Default batch size set to reasonable value (e.g., 5 departments at a time)
+3. Batch size configurable in system parameters JSON
+4. Progress tracking shows current batch and remaining batches
+5. Checkpointing between batches for resumability (NFR12)
+
+**Execution Dependencies:**
+- **Can Start After:** Epic 1 complete (specifically Story 1.4 for checkpoint_manager)
+- **Parallel Execution:** Can run in parallel with Story 2.4
+- **Blocks:** Story 2.1 (provides batch processing infrastructure)
+- **Provides:** Batch configuration system, batch-level checkpointing, resume from checkpoint logic
+
+---
+
+#### Phase 2: Core Discovery (SEQUENTIAL)
+
+##### Story 2.1: University Website Structure Discovery
 
 As a **user**,
 I want **the system to automatically discover my target university's organizational structure**,
@@ -367,7 +423,19 @@ so that **it can comprehensively search all relevant departments without manual 
 5. Playwright fallback with screenshots when built-in tools fail
 6. Progress indicators show discovery status (NFR14)
 
-#### Story 2.2: Department Structure JSON Representation
+**Execution Dependencies:**
+- **Can Start After:** Stories 2.4 AND 2.5 complete
+- **Required Infrastructure:**
+  - Story 2.4: Error handling, retry logic, data quality flags
+  - Story 2.5: Batch configuration, checkpointing, resume logic
+- **Blocks:** Stories 2.2 and 2.3
+- **Output:** Raw discovered departments → Phase 3
+
+---
+
+#### Phase 3: Post-Processing (PARALLEL)
+
+##### Story 2.2: Department Structure JSON Representation
 
 As a **user**,
 I want **the discovered department structure saved in JSON format**,
@@ -381,7 +449,14 @@ so that **sub-agents can be delegated to process specific departments in paralle
 5. Human-readable formatting for manual review if needed
 6. Schema supports multi-level hierarchies (minimum 3 levels deep)
 
-#### Story 2.3: Department Relevance Filtering
+**Execution Dependencies:**
+- **Can Start After:** Story 2.1 complete
+- **Parallel Execution:** Can run in parallel with Story 2.3
+- **Blocks:** None (documentation artifact)
+- **Input:** Raw discovered departments from 2.1
+- **Output:** Hierarchical JSON (for documentation/review)
+
+##### Story 2.3: Department Relevance Filtering
 
 As a **user**,
 I want **irrelevant departments filtered out before professor discovery**,
@@ -396,32 +471,12 @@ so that **the system doesn't waste time scraping departments with no relevant la
 6. Remaining departments list passed to next epic
 7. Progress shows "Filtered X of Y departments"
 
-#### Story 2.4: Error Handling for Missing Structure Data
-
-As a **user**,
-I want **the system to handle cases where department structure is unclear or incomplete**,
-so that **analysis continues with graceful degradation instead of failing**.
-
-**Acceptance Criteria:**
-1. System identifies when structure discovery is incomplete or ambiguous (NFR13)
-2. User notified of structure gaps with specific details
-3. Partial structure data saved and used where available
-4. Fallback: Process all discoverable departments even if hierarchy unclear
-5. Data quality issues flagged in output (FR32)
-6. Detailed logging of what couldn't be discovered (NFR17)
-
-#### Story 2.5: Batch Configuration for Department Processing
-
-As a **user**,
-I want **department processing configured to run in reasonable batches**,
-so that **the system doesn't overwhelm resources with parallel operations**.
-
-**Acceptance Criteria:**
-1. Configurable batch size for parallel department processing (NFR4)
-2. Default batch size set to reasonable value (e.g., 5 departments at a time)
-3. Batch size configurable in system parameters JSON
-4. Progress tracking shows current batch and remaining batches
-5. Checkpointing between batches for resumability (NFR12)
+**Execution Dependencies:**
+- **Can Start After:** Stories 1.7 (user profile) AND 2.1 (discovered departments) complete
+- **Parallel Execution:** Can run in parallel with Story 2.2
+- **Blocks:** Epic 3 (provides filtered department list)
+- **Input:** Raw discovered departments from 2.1
+- **Output:** Filtered departments → Epic 3
 
 ---
 

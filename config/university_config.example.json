@@ -1,0 +1,11 @@
+{
+  "university_name": "Stanford University",
+  "core_website": "https://www.stanford.edu",
+  "directory_link": "https://www.stanford.edu/faculty-staff",
+  "department_structure_hint": "Schools > Departments",
+  "known_departments": [
+    "Computer Science",
+    "Electrical Engineering",
+    "Bioengineering"
+  ]
+}

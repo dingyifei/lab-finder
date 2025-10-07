@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "User Profile Configuration",
+  "description": "User's academic profile for lab matching",
+  "type": "object",
+  "required": ["name", "current_degree", "target_university", "target_department", "research_interests"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "User's full name",
+      "minLength": 1
+    },
+    "current_degree": {
+      "type": "string",
+      "description": "Current degree program (e.g., 'PhD in Computer Science')",
+      "minLength": 1
+    },
+    "target_university": {
+      "type": "string",
+      "description": "University to analyze",
+      "minLength": 1
+    },
+    "target_department": {
+      "type": "string",
+      "description": "Primary department of interest",
+      "minLength": 1
+    },
+    "research_interests": {
+      "type": "array",
+      "description": "List of research interests",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "resume_highlights": {
+      "type": "object",
+      "description": "Extracted resume sections",
+      "properties": {
+        "education": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "degree": {"type": "string"},
+              "institution": {"type": "string"},
+              "year": {"type": "integer"}
+            }
+          }
+        },
+        "skills": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "research_experience": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {"type": "string"},
+              "description": {"type": "string"},
+              "duration": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "preferred_graduation_duration": {
+      "type": "number",
+      "description": "Average PhD graduation duration in years for timeline calculations",
+      "default": 5.5,
+      "minimum": 3.0,
+      "maximum": 10.0
+    }
+  }
+}

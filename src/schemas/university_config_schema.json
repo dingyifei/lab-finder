@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "University Configuration",
+  "description": "Target university details and structure",
+  "type": "object",
+  "required": ["university_name", "core_website", "directory_link"],
+  "properties": {
+    "university_name": {
+      "type": "string",
+      "description": "Full university name",
+      "minLength": 1
+    },
+    "core_website": {
+      "type": "string",
+      "description": "University main website URL",
+      "format": "uri"
+    },
+    "directory_link": {
+      "type": "string",
+      "description": "Faculty directory URL",
+      "format": "uri"
+    },
+    "department_structure_hint": {
+      "type": "string",
+      "description": "Optional hint about multi-layered structure (e.g., 'School > Division > Department')",
+      "examples": ["School of Medicine > Divisions > Departments"]
+    },
+    "known_departments": {
+      "type": "array",
+      "description": "Optional list of known relevant departments",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

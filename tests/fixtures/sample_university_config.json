@@ -1,0 +1,12 @@
+{
+  "university_name": "Stanford University",
+  "core_website": "https://www.stanford.edu",
+  "directory_link": "https://www.stanford.edu/list/academic/",
+  "department_structure_hint": "School > Department",
+  "known_departments": [
+    "Computer Science",
+    "Electrical Engineering",
+    "Biomedical Informatics",
+    "Statistics"
+  ]
+}

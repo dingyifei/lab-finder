@@ -28,9 +28,10 @@ DEPENDENCIES = [
     ("mypy", "MyPy"),
 ]
 
-def verify_imports():
+
+def verify_imports() -> None:
     """Verify all critical imports work."""
-    failed = []
+    failed: list[str] = []
 
     print("Verifying dependencies...\n")
 
@@ -42,7 +43,7 @@ def verify_imports():
             print(f"[FAILED] {display_name}: {e}")
             failed.append(display_name)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
 
     if failed:
         print(f"[ERROR] {len(failed)} dependencies failed:")
@@ -52,6 +53,7 @@ def verify_imports():
     else:
         print("[SUCCESS] All dependencies verified successfully!")
         sys.exit(0)
+
 
 if __name__ == "__main__":
     verify_imports()

@@ -1,0 +1,110 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "System Parameters Configuration",
+  "description": "System execution and batch processing parameters",
+  "type": "object",
+  "properties": {
+    "batch_sizes": {
+      "type": "object",
+      "description": "Batch sizes for parallel processing",
+      "properties": {
+        "departments": {
+          "type": "integer",
+          "description": "Number of departments to process in parallel",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 20
+        },
+        "professors": {
+          "type": "integer",
+          "description": "Number of professors to filter in parallel",
+          "default": 20,
+          "minimum": 5,
+          "maximum": 50
+        },
+        "labs": {
+          "type": "integer",
+          "description": "Number of labs to analyze in parallel",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 30
+        }
+      }
+    },
+    "rate_limits": {
+      "type": "object",
+      "description": "Rate limiting per data source (requests per minute)",
+      "properties": {
+        "archive_org": {
+          "type": "integer",
+          "description": "Archive.org requests per minute",
+          "default": 30,
+          "minimum": 5
+        },
+        "linkedin": {
+          "type": "integer",
+          "description": "LinkedIn requests per minute",
+          "default": 10,
+          "minimum": 1
+        },
+        "paper_search": {
+          "type": "integer",
+          "description": "Paper search requests per minute",
+          "default": 20,
+          "minimum": 5
+        }
+      }
+    },
+    "timeouts": {
+      "type": "object",
+      "description": "Timeout values in seconds",
+      "properties": {
+        "web_scraping": {
+          "type": "integer",
+          "description": "Web scraping timeout (seconds)",
+          "default": 30,
+          "minimum": 10
+        },
+        "mcp_query": {
+          "type": "integer",
+          "description": "MCP query timeout (seconds)",
+          "default": 60,
+          "minimum": 10
+        }
+      }
+    },
+    "confidence_thresholds": {
+      "type": "object",
+      "description": "Minimum confidence scores for matching",
+      "properties": {
+        "professor_filter": {
+          "type": "number",
+          "description": "Minimum confidence for professor filtering",
+          "default": 70.0,
+          "minimum": 0.0,
+          "maximum": 100.0
+        },
+        "linkedin_match": {
+          "type": "number",
+          "description": "Minimum confidence for LinkedIn profile matching",
+          "default": 75.0,
+          "minimum": 0.0,
+          "maximum": 100.0
+        }
+      }
+    },
+    "publication_years": {
+      "type": "integer",
+      "description": "Number of recent years to search for publications",
+      "default": 3,
+      "minimum": 1,
+      "maximum": 10
+    },
+    "log_level": {
+      "type": "string",
+      "description": "Logging level",
+      "enum": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+      "default": "INFO"
+    }
+  }
+}

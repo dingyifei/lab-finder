@@ -1,0 +1,96 @@
+# Quality Gate Decision
+# Story: 1.5 MCP Server Configuration & Testing
+# Reviewed by Quinn (Test Architect)
+
+schema: 1
+story: "1.5"
+story_title: "MCP Server Configuration & Testing"
+gate: CONCERNS
+status_reason: "Implementation is solid with excellent test coverage and all 7 ACs met. However, silent credential failures and deferred error handling present minor reliability concerns that should be addressed in Epic 0 validation and Epic 5 & 6 implementation."
+reviewer: "Quinn (Test Architect)"
+updated: "2025-10-06T00:00:00Z"
+
+# Waiver section (not active)
+waiver:
+  active: false
+
+# Identified issues
+top_issues:
+  - id: "SEC-001"
+    severity: medium
+    finding: "Empty credentials returned silently without warning (mcp_client.py:77-78)"
+    suggested_action: "Consider adding warning log when credentials are empty, and ensure Epic 0 validation phase calls validate_mcp_config()"
+    refs: ["src/utils/mcp_client.py:77-78"]
+
+  - id: "REL-001"
+    severity: medium
+    finding: "Error handling appropriately deferred to Epic 5 & 6 but only documented, not implemented"
+    suggested_action: "Implement documented fallback pattern (try/except/log/flag/continue) in Epic 5 & 6 stories"
+    refs: ["src/utils/mcp_client.py:103-117"]
+
+  - id: "TEST-001"
+    severity: low
+    finding: "Pytest markers not registered causing test warnings"
+    suggested_action: "RESOLVED - Created pytest.ini with marker registration"
+    refs: ["pytest.ini"]
+
+# Risk assessment summary
+risk_summary:
+  totals:
+    critical: 0
+    high: 0
+    medium: 2
+    low: 1
+  highest: "medium"
+  recommendations:
+    must_fix: []
+    monitor:
+      - "Ensure Epic 0 validation phase calls validate_mcp_config() before pipeline execution"
+      - "Verify Epic 5 & 6 implement documented fallback pattern with actual error handling"
+
+# Quality scoring
+quality_score: 80
+expires: "2025-10-20T00:00:00Z"
+
+# Evidence of review
+evidence:
+  tests_reviewed: 20
+  risks_identified: 3
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7]
+    ac_gaps: []
+
+# Non-functional requirements validation
+nfr_validation:
+  security:
+    status: CONCERNS
+    notes: "Credentials properly isolated (env vars, not hardcoded), but empty credentials returned silently. No credential format validation."
+  performance:
+    status: PASS
+    notes: "Lightweight config generation, no heavy computation, slow tests marked appropriately"
+  reliability:
+    status: CONCERNS
+    notes: "Validation function exists, fallback pattern documented, but actual error handling deferred to Epic 5 & 6"
+  maintainability:
+    status: PASS
+    notes: "Excellent documentation, type hints throughout, passes ruff/mypy, 20 comprehensive tests"
+
+# Recommendations
+recommendations:
+  immediate:
+    - action: "Ensure Epic 0 validation phase calls validate_mcp_config() and handles errors before pipeline execution"
+      refs: ["src/utils/mcp_client.py:86-131"]
+    - action: "Update story File List to include pytest.ini"
+      refs: ["docs/stories/1.5.mcp-server-setup.md"]
+
+  future:
+    - action: "Epic 5 & 6: Implement documented fallback pattern with try/except/log/flag/continue"
+      refs: ["src/utils/mcp_client.py:103-117"]
+    - action: "Consider adding warning log when credentials are empty in get_mcp_server_config()"
+      refs: ["src/utils/mcp_client.py:77-78"]
+
+# Review history
+history:
+  - at: "2025-10-06T00:00:00Z"
+    gate: CONCERNS
+    note: "Initial comprehensive review - all ACs met with excellent test coverage, minor reliability concerns with silent credential failures and deferred error handling"
