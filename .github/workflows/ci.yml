@@ -141,6 +141,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Install uv (provides uvx for mcp-linkedin)
+        run: pip install uv
+
       - name: Install Node.js for MCP servers
         uses: actions/setup-node@v4
         with:
@@ -150,6 +153,7 @@ jobs:
         run: |
           echo "CI environment detected - integration tests will use mocked MCP servers"
           echo "No actual MCP server installation required"
+          echo "uvx installed for LinkedIn MCP server testing"
 
       - name: Run integration tests
         run: pytest tests/integration/ -v --no-cov
