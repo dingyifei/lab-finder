@@ -341,7 +341,9 @@ async def test_parallel_discovery_with_multiple_departments(mocker):
     )
 
     depts = [
-        Department(id=f"d{i}", name=f"Dept{i}", url=f"http://d{i}.edu", is_relevant=True)
+        Department(
+            id=f"d{i}", name=f"Dept{i}", url=f"http://d{i}.edu", is_relevant=True
+        )
         for i in range(5)
     ]
     professors = await discover_professors_parallel(depts, max_concurrent=3)
@@ -378,7 +380,9 @@ async def test_semaphore_limits_concurrent_execution(mocker):
     )
 
     depts = [
-        Department(id=f"d{i}", name=f"Dept{i}", url=f"http://d{i}.edu", is_relevant=True)
+        Department(
+            id=f"d{i}", name=f"Dept{i}", url=f"http://d{i}.edu", is_relevant=True
+        )
         for i in range(10)
     ]
     await discover_professors_parallel(depts, max_concurrent=3)

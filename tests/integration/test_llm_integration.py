@@ -16,7 +16,7 @@ from src.utils.llm_helpers import call_llm_with_retry
 @pytest.mark.integration
 @pytest.mark.skipif(
     os.getenv("CI") == "true",
-    reason="Requires Claude Code CLI authentication - ClaudeSDKClient uses CLI auth, not ANTHROPIC_API_KEY"
+    reason="Requires Claude Code CLI authentication - ClaudeSDKClient uses CLI auth, not ANTHROPIC_API_KEY",
 )
 async def test_call_llm_with_retry_basic():
     """Test that call_llm_with_retry() successfully calls Claude Agent SDK."""
@@ -40,7 +40,7 @@ async def test_call_llm_with_retry_basic():
 @pytest.mark.integration
 @pytest.mark.skipif(
     os.getenv("CI") == "true",
-    reason="Requires Claude Code CLI authentication - ClaudeSDKClient uses CLI auth, not ANTHROPIC_API_KEY"
+    reason="Requires Claude Code CLI authentication - ClaudeSDKClient uses CLI auth, not ANTHROPIC_API_KEY",
 )
 async def test_call_llm_with_retry_json_response():
     """Test that call_llm_with_retry() handles JSON responses correctly."""
