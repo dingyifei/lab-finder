@@ -2,12 +2,15 @@
 
 Combined agent for professor discovery and filtering operations.
 - Story 3.1a: Discovery functions (this implementation)
+- Story 3.1b: Parallel processing functions (this implementation)
 - Story 3.2: Filtering functions (to be added)
 """
 
+import asyncio
 import hashlib
 import json
 import re
+import uuid
 
 from bs4 import BeautifulSoup
 from claude_agent_sdk import (
@@ -53,7 +56,7 @@ def generate_professor_id(name: str, department_id: str) -> str:
     return hashlib.sha256(content.encode()).hexdigest()[:16]
 
 
-def parse_professor_data(text: str) -> list[dict]:
+def parse_professor_data(text: str) -> list[dict[str, object]]:
     """Parse professor data from Claude's response text.
 
     Args:
@@ -66,7 +69,8 @@ def parse_professor_data(text: str) -> list[dict]:
         # Try to extract JSON array from response
         json_match = re.search(r"\[.*\]", text, re.DOTALL)
         if json_match:
-            return json.loads(json_match.group(0))
+            parsed: list[dict[str, object]] = json.loads(json_match.group(0))
+            return parsed
         return []
     except json.JSONDecodeError:
         return []
@@ -427,3 +431,130 @@ def load_relevant_departments(correlation_id: str) -> list[Department]:
     )
 
     return valid_departments
+
+
+async def discover_professors_parallel(
+    departments: list[Department], max_concurrent: int = 5
+) -> list[Professor]:
+    """Discover professors across multiple departments in parallel using asyncio.
+
+    This is APPLICATION-LEVEL parallel execution, NOT a Claude Agent SDK feature.
+    Uses asyncio.Semaphore to control concurrency.
+
+    Args:
+        departments: List of Department models to discover professors for
+        max_concurrent: Maximum number of concurrent department processing tasks
+
+    Returns:
+        Aggregated list of Professor models from all departments
+
+    Raises:
+        None - Failed departments are logged but don't block processing
+    """
+    from src.utils.progress_tracker import ProgressTracker
+
+    logger = get_logger(
+        correlation_id="prof-discovery-coordinator",
+        phase="professor_discovery",
+        component="professor_filter",
+    )
+    logger.info(
+        "Starting parallel discovery",
+        departments_count=len(departments),
+        max_concurrent=max_concurrent,
+    )
+
+    # Handle edge case: empty department list
+    if not departments:
+        logger.warning("No departments provided for parallel discovery")
+        return []
+
+    # Initialize progress tracker
+    tracker = ProgressTracker()
+    tracker.start_phase("Phase 2: Professor Discovery", total_items=len(departments))
+
+    # Create semaphore for concurrency control
+    semaphore = asyncio.Semaphore(max_concurrent)
+    completed_count = 0
+    failed_count = 0
+
+    async def process_with_semaphore(dept: Department, index: int) -> list[Professor]:
+        """Process single department with semaphore control and progress tracking."""
+        nonlocal completed_count, failed_count
+
+        async with semaphore:
+            # Generate unique correlation ID for this department's processing
+            correlation_id = f"prof-disc-{dept.id}-{uuid.uuid4().hex[:8]}"
+
+            logger.info(
+                f"Processing department {index+1}/{len(departments)}",
+                department=dept.name,
+                correlation_id=correlation_id,
+            )
+
+            try:
+                # discover_professors_for_department() from Story 3.1a
+                # Returns: list[Professor] | Raises: Exception on scraping/network failures
+                professors = await discover_professors_for_department(
+                    dept, correlation_id
+                )
+
+                logger.info(
+                    "Department processing successful",
+                    department=dept.name,
+                    professors_found=len(professors),
+                    correlation_id=correlation_id,
+                )
+
+                return professors
+
+            except Exception as e:
+                logger.error(
+                    "Department processing failed",
+                    department=dept.name,
+                    error=str(e),
+                    correlation_id=correlation_id,
+                )
+
+                failed_count += 1
+                return []  # Return empty list, continue with others
+
+            finally:
+                # Always update progress, even if exception occurs
+                completed_count += 1
+                tracker.update(completed=completed_count)
+
+    # Create tasks for all departments
+    tasks = [
+        process_with_semaphore(dept, i) for i, dept in enumerate(departments)
+    ]
+
+    # Execute in parallel with asyncio.gather
+    # return_exceptions=True ensures one failure doesn't stop others
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Flatten results and track failures
+    all_professors: list[Professor] = []
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            failed_count += 1
+            logger.error(
+                "Task failed with exception",
+                department=departments[i].name,
+                error=str(result),
+            )
+            continue
+        if isinstance(result, list):
+            all_professors.extend(result)
+
+    # Complete progress tracking
+    tracker.complete_phase()
+
+    logger.info(
+        "Parallel discovery complete",
+        total_professors=len(all_professors),
+        successful_departments=len(departments) - failed_count,
+        failed_departments=failed_count,
+    )
+
+    return all_professors

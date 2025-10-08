@@ -75,7 +75,8 @@
       "Bash(venv/Scripts/ruff.exe format:*)",
       "Bash(venvScriptspython.exe -m pytest tests/unit/test_batch_processing.py -v --tb=short)",
       "Bash(python:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(CI=true venv/Scripts/python.exe -m pytest tests/integration/test_llm_integration.py -v)"
     ],
     "deny": [],
     "ask": []

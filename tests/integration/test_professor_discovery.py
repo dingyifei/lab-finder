@@ -1,16 +1,19 @@
 """Integration tests for professor discovery agent."""
 
+import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from src.agents.professor_filter import (
     discover_professors_for_department,
+    discover_professors_parallel,
     discover_with_playwright_fallback,
     generate_professor_id,
     load_relevant_departments,
     parse_professor_data,
 )
 from src.models.department import Department
+from src.models.professor import Professor
 
 
 @pytest.mark.integration
@@ -303,3 +306,205 @@ def test_load_relevant_departments_filters_invalid(mocker):
     # Should only include valid department
     assert len(departments) == 1
     assert departments[0].name == "Computer Science"
+
+
+# ===========================================
+# Story 3.1b: Parallel Processing Tests
+# ===========================================
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_parallel_discovery_with_multiple_departments(mocker):
+    """Test parallel execution with asyncio.gather."""
+
+    # Mock discover_professors_for_department
+    async def mock_discover(dept, corr_id):
+        return [
+            Professor(
+                id=f"prof-{dept.id}",
+                name=f"Prof from {dept.name}",
+                title="Professor",
+                department_id=dept.id,
+                department_name=dept.name,
+                profile_url="https://test.edu/faculty/prof",
+            )
+        ]
+
+    mocker.patch(
+        "src.agents.professor_filter.discover_professors_for_department",
+        side_effect=mock_discover,
+    )
+
+    depts = [
+        Department(id=f"d{i}", name=f"Dept{i}", url=f"http://d{i}.edu", is_relevant=True)
+        for i in range(5)
+    ]
+    professors = await discover_professors_parallel(depts, max_concurrent=3)
+
+    assert len(professors) == 5
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_semaphore_limits_concurrent_execution(mocker):
+    """Test concurrency control with Semaphore."""
+    # Track concurrent executions
+    active_count = 0
+    max_active = 0
+    lock = asyncio.Lock()
+
+    async def mock_discover_with_tracking(dept, corr_id):
+        nonlocal active_count, max_active
+
+        async with lock:
+            active_count += 1
+            max_active = max(max_active, active_count)
+
+        await asyncio.sleep(0.1)  # Simulate work
+
+        async with lock:
+            active_count -= 1
+
+        return []
+
+    mocker.patch(
+        "src.agents.professor_filter.discover_professors_for_department",
+        side_effect=mock_discover_with_tracking,
+    )
+
+    depts = [
+        Department(id=f"d{i}", name=f"Dept{i}", url=f"http://d{i}.edu", is_relevant=True)
+        for i in range(10)
+    ]
+    await discover_professors_parallel(depts, max_concurrent=3)
+
+    # Verify semaphore limited concurrency to 3
+    assert max_active <= 3
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_progress_tracking_updates(mocker):
+    """Test progress tracking updates."""
+    mock_tracker_instance = MagicMock()
+    mocker.patch(
+        "src.utils.progress_tracker.ProgressTracker",
+        return_value=mock_tracker_instance,
+    )
+
+    # Mock discover to return empty lists
+    mocker.patch(
+        "src.agents.professor_filter.discover_professors_for_department",
+        return_value=[],
+    )
+
+    depts = [
+        Department(id=f"d{i}", name=f"Dept{i}", url="test", is_relevant=True)
+        for i in range(5)
+    ]
+    await discover_professors_parallel(depts, max_concurrent=2)
+
+    # Verify progress tracker called
+    mock_tracker_instance.start_phase.assert_called_once()
+    assert mock_tracker_instance.update.call_count == 5
+    mock_tracker_instance.complete_phase.assert_called_once()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_failed_department_doesnt_stop_processing(mocker):
+    """Test error handling for failed departments."""
+
+    # Mock to fail on 2nd department
+    async def mock_discover_with_failure(dept, corr_id):
+        if dept.id == "d1":
+            raise Exception("Department 1 failed")
+        return [
+            Professor(
+                id=f"prof-{dept.id}",
+                name="Prof",
+                title="Professor",
+                department_id=dept.id,
+                department_name=dept.name,
+                profile_url="test",
+            )
+        ]
+
+    mocker.patch(
+        "src.agents.professor_filter.discover_professors_for_department",
+        side_effect=mock_discover_with_failure,
+    )
+
+    depts = [
+        Department(id=f"d{i}", name=f"Dept{i}", url="test", is_relevant=True)
+        for i in range(3)
+    ]
+    professors = await discover_professors_parallel(depts, max_concurrent=2)
+
+    # Should get professors from d0 and d2, but not d1
+    assert len(professors) == 2
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_empty_department_list(mocker):
+    """Test edge case: Empty department list."""
+    mocker.patch("src.agents.professor_filter.discover_professors_for_department")
+
+    professors = await discover_professors_parallel([], max_concurrent=3)
+
+    # Should return empty list without errors
+    assert professors == []
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_all_departments_fail(mocker):
+    """Test edge case: All departments fail."""
+
+    async def mock_discover_always_fail(dept, corr_id):
+        raise Exception("All departments failed")
+
+    mocker.patch(
+        "src.agents.professor_filter.discover_professors_for_department",
+        side_effect=mock_discover_always_fail,
+    )
+
+    depts = [
+        Department(id=f"d{i}", name=f"Dept{i}", url="test", is_relevant=True)
+        for i in range(3)
+    ]
+    professors = await discover_professors_parallel(depts, max_concurrent=2)
+
+    # Should return empty list, not crash
+    assert professors == []
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_single_department(mocker):
+    """Test edge case: Single department."""
+
+    async def mock_discover(dept, corr_id):
+        return [
+            Professor(
+                id="prof-1",
+                name="Prof Smith",
+                title="Professor",
+                department_id=dept.id,
+                department_name=dept.name,
+                profile_url="test",
+            )
+        ]
+
+    mocker.patch(
+        "src.agents.professor_filter.discover_professors_for_department",
+        side_effect=mock_discover,
+    )
+
+    depts = [Department(id="d1", name="Dept1", url="test", is_relevant=True)]
+    professors = await discover_professors_parallel(depts, max_concurrent=5)
+
+    # Should handle single department correctly
+    assert len(professors) == 1
