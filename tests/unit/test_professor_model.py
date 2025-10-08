@@ -132,5 +132,8 @@ def test_professor_data_quality_flags_constant():
         "ambiguous_lab",
         "llm_filtering_failed",  # Added in Story 3.2
         "low_confidence_filter",  # Added in Story 3.2
+        "llm_response_error",  # Added in Story 3.3
+        "manual_override",  # Added in Story 3.3
+        "confidence_out_of_range",  # Added in Story 3.3
     }
     assert PROFESSOR_DATA_QUALITY_FLAGS == expected_flags

@@ -154,6 +154,7 @@ class TestFilterProfessorSingle:
         )
         mock_params = Mock()
         mock_params.confidence_thresholds.professor_filter = 70.0
+        mock_params.filtering_config.low_confidence_threshold = 70
         mock_system_params.return_value = mock_params
 
         professor = Professor(
@@ -194,6 +195,7 @@ class TestFilterProfessorSingle:
         )
         mock_params = Mock()
         mock_params.confidence_thresholds.professor_filter = 70.0
+        mock_params.filtering_config.low_confidence_threshold = 70
         mock_system_params.return_value = mock_params
 
         professor = Professor(
@@ -232,6 +234,7 @@ class TestFilterProfessorSingle:
         )
         mock_params = Mock()
         mock_params.confidence_thresholds.professor_filter = 70.0
+        mock_params.filtering_config.low_confidence_threshold = 70
         mock_system_params.return_value = mock_params
 
         professor = Professor(
@@ -270,6 +273,7 @@ class TestFilterProfessorSingle:
         )
         mock_params = Mock()
         mock_params.confidence_thresholds.professor_filter = 70.0
+        mock_params.filtering_config.low_confidence_threshold = 70
         mock_system_params.return_value = mock_params
 
         professor = Professor(
@@ -309,6 +313,7 @@ class TestFilterProfessorSingle:
         )
         mock_params = Mock()
         mock_params.confidence_thresholds.professor_filter = 70.0
+        mock_params.filtering_config.low_confidence_threshold = 70
         mock_system_params.return_value = mock_params
 
         professor = Professor(
@@ -348,6 +353,7 @@ class TestFilterProfessorSingle:
         )
         mock_params = Mock()
         mock_params.confidence_thresholds.professor_filter = 70.0
+        mock_params.filtering_config.low_confidence_threshold = 70
         mock_system_params.return_value = mock_params
 
         professor = Professor(
@@ -395,6 +401,8 @@ class TestFilterProfessors:
         mock_params = Mock()
         mock_params.batch_config.professor_discovery_batch_size = 2
         mock_params.confidence_thresholds.professor_filter = 70.0
+        mock_params.filtering_config.low_confidence_threshold = 70
+        mock_params.filtering_config.high_confidence_threshold = 90
         mock_system_params.return_value = mock_params
 
         # Mock checkpoint manager
@@ -475,6 +483,8 @@ class TestFilterProfessors:
         mock_params = Mock()
         mock_params.batch_config.professor_discovery_batch_size = 10
         mock_params.confidence_thresholds.professor_filter = 70.0
+        mock_params.filtering_config.low_confidence_threshold = 70
+        mock_params.filtering_config.high_confidence_threshold = 90
         mock_system_params.return_value = mock_params
 
         mock_checkpoint = mocker.patch("src.agents.professor_filter.CheckpointManager")
@@ -559,6 +569,8 @@ class TestFilterProfessors:
         mock_params = Mock()
         mock_params.batch_config.professor_discovery_batch_size = 10
         mock_params.confidence_thresholds.professor_filter = 70.0
+        mock_params.filtering_config.low_confidence_threshold = 70
+        mock_params.filtering_config.high_confidence_threshold = 90
         mock_system_params.return_value = mock_params
 
         mock_checkpoint = mocker.patch("src.agents.professor_filter.CheckpointManager")
