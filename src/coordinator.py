@@ -6,6 +6,7 @@ Coordinates phase execution across Epic 2-8 with resumability support.
 """
 
 import json
+import uuid
 from pathlib import Path
 from typing import TypeVar
 
@@ -89,8 +90,6 @@ class CLICoordinator:
 
         # Generate correlation ID if not provided
         if correlation_id is None:
-            import uuid
-
             correlation_id = str(uuid.uuid4())
 
         self.correlation_id = correlation_id

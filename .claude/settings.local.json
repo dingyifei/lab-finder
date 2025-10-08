@@ -71,7 +71,11 @@
       "Bash(del CLAUDE-SDK-SOLUTION.md)",
       "Bash(if [ -f \"INTEGRATION_TEST_RESULTS.md\" ])",
       "Bash(then echo \"EXISTS\")",
-      "Bash(else echo \"NOT_FOUND\")"
+      "Bash(else echo \"NOT_FOUND\")",
+      "Bash(venv/Scripts/ruff.exe format:*)",
+      "Bash(venvScriptspython.exe -m pytest tests/unit/test_batch_processing.py -v --tb=short)",
+      "Bash(python:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

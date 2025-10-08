@@ -1,7 +1,6 @@
 """Manual test for Story 1.7 profile consolidation with real LLM."""
 
 import asyncio
-from pathlib import Path
 from src.agents.profile_consolidator import ProfileConsolidator
 
 
@@ -55,7 +54,7 @@ async def test_profile_consolidation():
         profile = await consolidator.consolidate(user_profile, university_config)
 
         print("\n[SUCCESS] Profile consolidated!")
-        print(f"\nStreamlined Interests (LLM-generated):")
+        print("\nStreamlined Interests (LLM-generated):")
         print("-" * 60)
         print(profile.streamlined_interests)
         print("-" * 60)

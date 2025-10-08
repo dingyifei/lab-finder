@@ -27,6 +27,7 @@ Example Usage:
     )
 """
 
+import json
 import logging
 import structlog
 from tenacity import (
@@ -37,10 +38,33 @@ from tenacity import (
     before_log,
     after_log,
 )
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 # Initialize logger
 logger = structlog.get_logger(__name__)
+
+
+def _extract_json_from_markdown(response_text: str) -> str:
+    """Extract JSON from LLM response, removing markdown code block markers if present.
+
+    Args:
+        response_text: Raw text response from LLM
+
+    Returns:
+        Clean JSON string with code block markers removed
+    """
+    json_text = response_text.strip()
+
+    # Remove markdown code block markers if present
+    if json_text.startswith("```json"):
+        json_text = json_text[7:]  # Remove ```json
+    elif json_text.startswith("```"):
+        json_text = json_text[3:]  # Remove ```
+
+    if json_text.endswith("```"):
+        json_text = json_text[:-3]  # Remove trailing ```
+
+    return json_text.strip()
 
 
 # Prompt Templates
@@ -287,8 +311,6 @@ async def analyze_department_relevance(
     Returns:
         Dict with 'decision' ('include'/'exclude'), 'confidence' (0-100), and 'reasoning' (str)
     """
-    import json
-
     prompt = DEPARTMENT_RELEVANCE_TEMPLATE.format(
         interests=research_interests,
         degree=degree,
@@ -301,20 +323,7 @@ async def analyze_department_relevance(
 
     # Parse JSON response
     try:
-        # Extract JSON from response (Claude might wrap it in markdown code blocks)
-        json_text = response.strip()
-
-        # Remove markdown code block markers if present
-        if json_text.startswith("```json"):
-            json_text = json_text[7:]  # Remove ```json
-        elif json_text.startswith("```"):
-            json_text = json_text[3:]  # Remove ```
-
-        if json_text.endswith("```"):
-            json_text = json_text[:-3]  # Remove trailing ```
-
-        json_text = json_text.strip()
-
+        json_text = _extract_json_from_markdown(response)
         result = json.loads(json_text)
 
         # Validate required fields
@@ -326,7 +335,7 @@ async def analyze_department_relevance(
             )
             return {"decision": "exclude", "confidence": 0, "reasoning": "Invalid response format"}
 
-        return result
+        return cast(dict[str, Any], result)
 
     except json.JSONDecodeError as e:
         logger.error(
@@ -359,8 +368,6 @@ async def filter_professor_research(
     Returns:
         Dict with 'confidence' (0-100) and 'reasoning' (str)
     """
-    import json
-
     prompt = PROFESSOR_FILTER_TEMPLATE.format(
         profile=user_profile,
         name=professor_name,
@@ -372,20 +379,7 @@ async def filter_professor_research(
 
     # Parse JSON response
     try:
-        # Extract JSON from response (Claude might wrap it in markdown code blocks)
-        json_text = response.strip()
-
-        # Remove markdown code block markers if present
-        if json_text.startswith("```json"):
-            json_text = json_text[7:]  # Remove ```json
-        elif json_text.startswith("```"):
-            json_text = json_text[3:]  # Remove ```
-
-        if json_text.endswith("```"):
-            json_text = json_text[:-3]  # Remove trailing ```
-
-        json_text = json_text.strip()
-
+        json_text = _extract_json_from_markdown(response)
         result = json.loads(json_text)
 
         # Validate required fields
@@ -397,7 +391,7 @@ async def filter_professor_research(
             )
             return {"confidence": 0, "reasoning": "Invalid response format"}
 
-        return result
+        return cast(dict[str, Any], result)
 
     except json.JSONDecodeError as e:
         logger.error(
@@ -430,8 +424,6 @@ async def match_linkedin_profile(
     Returns:
         Dict with 'confidence' (0-100) and 'reasoning' (str)
     """
-    import json
-
     prompt = LINKEDIN_MATCH_TEMPLATE.format(
         member_name=member_name,
         university=university,
@@ -443,20 +435,7 @@ async def match_linkedin_profile(
 
     # Parse JSON response
     try:
-        # Extract JSON from response (Claude might wrap it in markdown code blocks)
-        json_text = response.strip()
-
-        # Remove markdown code block markers if present
-        if json_text.startswith("```json"):
-            json_text = json_text[7:]  # Remove ```json
-        elif json_text.startswith("```"):
-            json_text = json_text[3:]  # Remove ```
-
-        if json_text.endswith("```"):
-            json_text = json_text[:-3]  # Remove trailing ```
-
-        json_text = json_text.strip()
-
+        json_text = _extract_json_from_markdown(response)
         result = json.loads(json_text)
 
         # Validate required fields
@@ -468,7 +447,7 @@ async def match_linkedin_profile(
             )
             return {"confidence": 0, "reasoning": "Invalid response format"}
 
-        return result
+        return cast(dict[str, Any], result)
 
     except json.JSONDecodeError as e:
         logger.error(
@@ -496,8 +475,6 @@ async def match_names(
     Returns:
         Dict with 'decision' (yes/no), 'confidence' (0-100), and 'reasoning' (str)
     """
-    import json
-
     prompt = NAME_MATCH_TEMPLATE.format(
         name1=name1, name2=name2, context=context or "No additional context"
     )
@@ -506,20 +483,7 @@ async def match_names(
 
     # Parse JSON response
     try:
-        # Extract JSON from response (Claude might wrap it in markdown code blocks)
-        json_text = response.strip()
-
-        # Remove markdown code block markers if present
-        if json_text.startswith("```json"):
-            json_text = json_text[7:]  # Remove ```json
-        elif json_text.startswith("```"):
-            json_text = json_text[3:]  # Remove ```
-
-        if json_text.endswith("```"):
-            json_text = json_text[:-3]  # Remove trailing ```
-
-        json_text = json_text.strip()
-
+        json_text = _extract_json_from_markdown(response)
         result = json.loads(json_text)
 
         # Validate required fields
@@ -531,7 +495,7 @@ async def match_names(
             )
             return {"decision": "no", "confidence": 0, "reasoning": "Invalid response format"}
 
-        return result
+        return cast(dict[str, Any], result)
 
     except json.JSONDecodeError as e:
         logger.error(
@@ -562,8 +526,6 @@ async def score_abstract_relevance(
     Returns:
         Dict with 'relevance' (0-100) and 'reasoning' (str)
     """
-    import json
-
     prompt = ABSTRACT_RELEVANCE_TEMPLATE.format(
         interests=research_interests, abstract=abstract, title=paper_title
     )
@@ -572,20 +534,7 @@ async def score_abstract_relevance(
 
     # Parse JSON response
     try:
-        # Extract JSON from response (Claude might wrap it in markdown code blocks)
-        json_text = response.strip()
-
-        # Remove markdown code block markers if present
-        if json_text.startswith("```json"):
-            json_text = json_text[7:]  # Remove ```json
-        elif json_text.startswith("```"):
-            json_text = json_text[3:]  # Remove ```
-
-        if json_text.endswith("```"):
-            json_text = json_text[:-3]  # Remove trailing ```
-
-        json_text = json_text.strip()
-
+        json_text = _extract_json_from_markdown(response)
         result = json.loads(json_text)
 
         # Validate required fields
@@ -597,7 +546,7 @@ async def score_abstract_relevance(
             )
             return {"relevance": 0, "reasoning": "Invalid response format"}
 
-        return result
+        return cast(dict[str, Any], result)
 
     except json.JSONDecodeError as e:
         logger.error(

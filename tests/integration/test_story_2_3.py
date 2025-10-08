@@ -1,7 +1,6 @@
 """Integration test for Story 2.3 - Department Relevance Filtering with real profile"""
 
 import asyncio
-import json
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -168,7 +167,7 @@ async def main():
         relevant = [d for d in filtered_departments if d.is_relevant]
         excluded = [d for d in filtered_departments if not d.is_relevant]
 
-        print(f"RESULTS SUMMARY:")
+        print("RESULTS SUMMARY:")
         print(f"  Total departments: {len(filtered_departments)}")
         print(f"  Relevant: {len(relevant)}")
         print(f"  Excluded: {len(excluded)}")
@@ -192,13 +191,13 @@ async def main():
         # Save filtered departments report
         print("Saving filtered departments report...")
         agent.save_filtered_departments_report(filtered_departments)
-        print(f"[OK] Report saved to: output/filtered-departments.md")
+        print("[OK] Report saved to: output/filtered-departments.md")
         print()
 
         # Save relevant departments to checkpoint
         print("Saving relevant departments to checkpoint...")
         agent.save_relevant_departments_checkpoint(filtered_departments)
-        print(f"[OK] Checkpoint saved to: checkpoints/phase-1-relevant-departments.jsonl")
+        print("[OK] Checkpoint saved to: checkpoints/phase-1-relevant-departments.jsonl")
         print()
 
         # Verify checkpoint

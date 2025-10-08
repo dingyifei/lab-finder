@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from src.models.department import Department
-from src.utils.logger import get_logger
 from src.utils.checkpoint_manager import CheckpointManager
+from src.utils.logger import get_logger
 from src.utils.progress_tracker import ProgressTracker
 
 
@@ -103,7 +103,7 @@ class UniversityDiscoveryAgent:
         return issues
 
     def _apply_graceful_degradation(
-        self, department_data: dict, issues: list[str]
+        self, department_data: dict[str, Any], issues: list[str]
     ) -> Department:
         """Apply graceful degradation for missing or ambiguous data.
 
@@ -161,7 +161,7 @@ class UniversityDiscoveryAgent:
     async def run_discovery_workflow(
         self,
         university_url: str,
-        system_params: dict,
+        system_params: dict[str, Any],
         manual_fallback_path: Optional[Path] = None,
         use_progress_tracker: bool = True,
     ) -> list[Department]:
@@ -233,7 +233,9 @@ class UniversityDiscoveryAgent:
             self.logger.info(
                 "University discovery workflow complete",
                 departments_discovered=len(departments),
-                departments_with_issues=sum(1 for d in departments if d.has_quality_issues()),
+                departments_with_issues=sum(
+                    1 for d in departments if d.has_quality_issues()
+                ),
             )
 
             return departments
@@ -264,13 +266,18 @@ class UniversityDiscoveryAgent:
 
         try:
             # Use Claude Agent SDK with WebFetch/WebSearch tools
-            from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage, TextBlock
+            from claude_agent_sdk import (
+                AssistantMessage,
+                ClaudeAgentOptions,
+                TextBlock,
+                query,
+            )
 
             # Configure SDK with web scraping tools
             options = ClaudeAgentOptions(
                 allowed_tools=["WebFetch", "WebSearch"],
                 max_turns=3,
-                system_prompt="You are a web scraping assistant specialized in extracting university organizational structures."
+                system_prompt="You are a web scraping assistant specialized in extracting university organizational structures.",
             )
 
             # Construct prompt for department extraction
@@ -296,7 +303,9 @@ Return the data as a JSON array with this structure:
 
 If you cannot find certain fields, use null. Be thorough and extract all departments you can find."""
 
-            self.logger.info("Using Claude Agent SDK for web scraping", url=university_url)
+            self.logger.info(
+                "Using Claude Agent SDK for web scraping", url=university_url
+            )
 
             # Query Claude via SDK
             response_text = ""
@@ -313,7 +322,7 @@ If you cannot find certain fields, use null. Be thorough and extract all departm
                 self.logger.warning(
                     "No departments extracted from SDK response",
                     url=university_url,
-                    response_length=len(response_text)
+                    response_length=len(response_text),
                 )
 
                 # Try manual fallback
@@ -328,7 +337,7 @@ If you cannot find certain fields, use null. Be thorough and extract all departm
                 "University structure discovery complete",
                 url=university_url,
                 departments_found=len(departments),
-                scraping_method="claude_agent_sdk"
+                scraping_method="claude_agent_sdk",
             )
 
         except Exception as e:
@@ -351,7 +360,9 @@ If you cannot find certain fields, use null. Be thorough and extract all departm
 
         return departments
 
-    def _parse_sdk_response(self, response_text: str, base_url: str) -> list[Department]:
+    def _parse_sdk_response(
+        self, response_text: str, base_url: str
+    ) -> list[Department]:
         """Parse Claude Agent SDK JSON response into Department models.
 
         Args:
@@ -383,8 +394,7 @@ If you cannot find certain fields, use null. Be thorough and extract all departm
 
             if not isinstance(dept_data_list, list):
                 self.logger.error(
-                    "SDK response is not a JSON array",
-                    response_preview=json_text[:200]
+                    "SDK response is not a JSON array", response_preview=json_text[:200]
                 )
                 return []
 
@@ -402,7 +412,7 @@ If you cannot find certain fields, use null. Be thorough and extract all departm
                     school=school if school else "Unknown School",
                     division=division,
                     url=url,
-                    hierarchy_level=hierarchy_level
+                    hierarchy_level=hierarchy_level,
                 )
 
                 # Add data quality flags
@@ -417,26 +427,26 @@ If you cannot find certain fields, use null. Be thorough and extract all departm
                     "Parsed department from SDK response",
                     name=name,
                     url=url,
-                    school=dept.school
+                    school=dept.school,
                 )
 
             self.logger.info(
                 "Successfully parsed SDK response",
                 departments_count=len(departments),
-                base_url=base_url
+                base_url=base_url,
             )
 
         except json.JSONDecodeError as e:
             self.logger.error(
                 "Failed to parse JSON from SDK response",
                 error=str(e),
-                response_preview=response_text[:500]
+                response_preview=response_text[:500],
             )
         except Exception as e:
             self.logger.error(
                 "Unexpected error parsing SDK response",
                 error_type=type(e).__name__,
-                error=str(e)
+                error=str(e),
             )
 
         return departments
@@ -1118,17 +1128,19 @@ If you cannot find certain fields, use null. Be thorough and extract all departm
                 end = content.find("\n##", start + 1)
                 if end == -1:
                     end = len(content)
-                profile_data["interests"] = content[start:end].replace(
-                    "## Streamlined Research Interests", ""
-                ).strip()
+                profile_data["interests"] = (
+                    content[start:end]
+                    .replace("## Streamlined Research Interests", "")
+                    .strip()
+                )
 
             # Extract degree program
             if "**Current Degree:**" in content:
                 start = content.index("**Current Degree:**")
                 end = content.find("\n", start)
-                profile_data["degree"] = content[start:end].replace(
-                    "**Current Degree:**", ""
-                ).strip()
+                profile_data["degree"] = (
+                    content[start:end].replace("**Current Degree:**", "").strip()
+                )
 
             # Extract educational background
             if "## Educational Background" in content:
@@ -1136,9 +1148,9 @@ If you cannot find certain fields, use null. Be thorough and extract all departm
                 end = content.find("\n##", start + 1)
                 if end == -1:
                     end = len(content)
-                profile_data["background"] = content[start:end].replace(
-                    "## Educational Background", ""
-                ).strip()
+                profile_data["background"] = (
+                    content[start:end].replace("## Educational Background", "").strip()
+                )
 
             # Validate required fields
             if not profile_data["interests"]:
@@ -1168,7 +1180,7 @@ If you cannot find certain fields, use null. Be thorough and extract all departm
         self,
         departments: list[Department],
         user_profile: dict[str, str],
-        system_params: Optional[dict] = None,
+        system_params: Optional[dict[str, Any]] = None,
         use_progress_tracker: bool = True,
     ) -> list[Department]:
         """Filter departments based on research relevance using LLM.
@@ -1193,8 +1205,7 @@ If you cannot find certain fields, use null. Be thorough and extract all departm
 
         if tracker:
             tracker.start_phase(
-                "Phase 1: Department Filtering",
-                total_items=len(departments)
+                "Phase 1: Department Filtering", total_items=len(departments)
             )
 
         self.logger.info(
@@ -1237,14 +1248,16 @@ If you cannot find certain fields, use null. Be thorough and extract all departm
 
                 # Track edge cases (interdisciplinary, ambiguous, generic)
                 if self._is_edge_case(dept, result):
-                    edge_cases.append({
-                        "department": dept.name,
-                        "school": dept.school,
-                        "decision": result["decision"],
-                        "confidence": result["confidence"],
-                        "reasoning": result["reasoning"],
-                        "edge_case_type": self._classify_edge_case(dept),
-                    })
+                    edge_cases.append(
+                        {
+                            "department": dept.name,
+                            "school": dept.school,
+                            "decision": result["decision"],
+                            "confidence": result["confidence"],
+                            "reasoning": result["reasoning"],
+                            "edge_case_type": self._classify_edge_case(dept),
+                        }
+                    )
                     self.logger.warning(
                         "Edge case department detected",
                         department=dept.name,
@@ -1302,18 +1315,36 @@ If you cannot find certain fields, use null. Be thorough and extract all departm
 
         # Check for interdisciplinary keywords
         interdisciplinary_keywords = [
-            "interdisciplinary", "multidisciplinary", "cross-disciplinary",
-            "&", "and", "joint", "combined"
+            "interdisciplinary",
+            "multidisciplinary",
+            "cross-disciplinary",
+            "&",
+            "and",
+            "joint",
+            "combined",
         ]
         if any(kw in dept_name_lower for kw in interdisciplinary_keywords):
             return True
 
-        # Check for generic department names
-        generic_keywords = [
-            "graduate studies", "research", "sciences", "engineering",
-            "general", "studies", "school of"
+        # Check for generic department names (exact match or full-word match to avoid false positives)
+        # Examples: "Graduate Studies", "School of Engineering" (generic)
+        # Not flagged: "Computer Science", "Mechanical Engineering" (specific departments)
+        generic_exact_keywords = [
+            "graduate studies",
+            "general studies",
+            "school of sciences",
+            "school of engineering",
+            "school of arts",
         ]
-        if any(dept_name_lower == kw or dept_name_lower.startswith(kw) for kw in generic_keywords):
+        if dept_name_lower in generic_exact_keywords:
+            return True
+
+        # Check for generic prefixes (startswith to catch variations)
+        generic_prefix_keywords = [
+            "graduate studies",
+            "general ",
+        ]
+        if any(dept_name_lower.startswith(kw) for kw in generic_prefix_keywords):
             return True
 
         # Check for ambiguous confidence (between 40-60)
@@ -1334,7 +1365,10 @@ If you cannot find certain fields, use null. Be thorough and extract all departm
         """
         dept_name_lower = dept.name.lower()
 
-        if any(kw in dept_name_lower for kw in ["&", "and", "interdisciplinary", "multidisciplinary"]):
+        if any(
+            kw in dept_name_lower
+            for kw in ["&", "and", "interdisciplinary", "multidisciplinary"]
+        ):
             return "interdisciplinary"
         elif any(kw in dept_name_lower for kw in ["graduate", "general", "studies"]):
             return "generic"
@@ -1366,7 +1400,8 @@ If you cannot find certain fields, use null. Be thorough and extract all departm
             f"**Relevant Departments:** {len(departments) - len(excluded)}",
             f"**Filtered Out:** {len(excluded)}",
             f"**Retention Rate:** {((len(departments) - len(excluded)) / len(departments) * 100):.1f}%"
-            if departments else "N/A",
+            if departments
+            else "N/A",
             "",
             "## Excluded Departments",
             "",
@@ -1386,15 +1421,17 @@ If you cannot find certain fields, use null. Be thorough and extract all departm
                 f"| {dept.name} | {dept.school or 'N/A'} | {reasoning} | {confidence} |"
             )
 
-        lines.extend([
-            "",
-            "## Instructions",
-            "",
-            "If you find departments that should be included:",
-            "1. Manually adjust `checkpoints/phase-1-relevant-departments.jsonl`",
-            "2. Or re-run with adjusted research interests in your user profile",
-            "",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Instructions",
+                "",
+                "If you find departments that should be included:",
+                "1. Manually adjust `checkpoints/phase-1-relevant-departments.jsonl`",
+                "2. Or re-run with adjusted research interests in your user profile",
+                "",
+            ]
+        )
 
         # Write report
         with open(output_path, "w", encoding="utf-8") as f:
@@ -1419,7 +1456,9 @@ If you cannot find certain fields, use null. Be thorough and extract all departm
                 "Checkpoint manager not initialized",
                 action="Initialize UniversityDiscoveryAgent with checkpoint_manager",
             )
-            raise RuntimeError("Checkpoint manager required for saving relevant departments")
+            raise RuntimeError(
+                "Checkpoint manager required for saving relevant departments"
+            )
 
         # Filter to relevant departments only
         relevant = [d for d in departments if d.is_relevant]

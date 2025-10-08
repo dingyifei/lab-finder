@@ -46,7 +46,7 @@ class TestPromptTemplates:
         assert "BS in Computer Science" in prompt
         assert "Computer Science" in prompt
         assert "Engineering" in prompt
-        assert "JSON format" in prompt
+        assert "JSON" in prompt  # Updated to match actual template
         assert "decision" in prompt
         assert "confidence" in prompt
         assert "reasoning" in prompt
@@ -69,7 +69,7 @@ class TestPromptTemplates:
         assert "Dr. Jane Smith" in prompt
         assert "deep learning, NLP" in prompt
         assert "Professor of CS" in prompt
-        assert "Confidence:" in prompt
+        assert "confidence" in prompt  # Updated to match actual template (lowercase in JSON spec)
 
     def test_linkedin_match_template_formatting(self):
         """Test that LinkedIn match template formats correctly."""
@@ -131,30 +131,37 @@ class TestCallLLMWithRetry:
 
     @pytest.mark.asyncio
     async def test_llm_call_succeeds(self, mocker):
-        """Test that call_llm_with_retry successfully calls claude_agent_sdk.query()."""
+        """Test that call_llm_with_retry successfully calls ClaudeSDKClient."""
         # Arrange
         prompt = "Test prompt"
 
-        # Mock claude_agent_sdk.query to return a test response
+        # Mock the response message
         mock_message = mocker.Mock()
         mock_block = mocker.Mock()
         mock_block.text = "Test LLM response"
         mock_message.content = [mock_block]
 
         # Create async generator for mock response
-        async def mock_query_response(prompt):
+        async def mock_receive_response():
             yield mock_message
 
-        # Patch at the source module (claude_agent_sdk)
-        mock_query = mocker.patch("claude_agent_sdk.query")
-        mock_query.return_value = mock_query_response(prompt)
+        # Create mock client
+        mock_client = mocker.AsyncMock()
+        mock_client.query = mocker.AsyncMock()
+        mock_client.receive_response = mock_receive_response
+        mock_client.__aenter__ = mocker.AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = mocker.AsyncMock(return_value=None)
+
+        # Patch ClaudeSDKClient from claude_agent_sdk module
+        mock_client_class = mocker.patch("claude_agent_sdk.ClaudeSDKClient")
+        mock_client_class.return_value = mock_client
 
         # Act
         response = await call_llm_with_retry(prompt)
 
         # Assert
         assert response == "Test LLM response"
-        mock_query.assert_called_once_with(prompt=prompt)
+        mock_client.query.assert_called_once_with(prompt)
 
 
 class TestAnalyzeDepartmentRelevance:
@@ -193,7 +200,7 @@ class TestFilterProfessorResearch:
     async def test_parses_confidence_score(self, mocker):
         """Test that filter_professor_research parses confidence score."""
         # Arrange
-        mock_response = "Confidence: 85\nReasoning: Research areas align well"
+        mock_response = '{"confidence": 85, "reasoning": "Research areas align well"}'
         mocker.patch(
             "src.utils.llm_helpers.call_llm_with_retry",
             new_callable=AsyncMock,
@@ -240,7 +247,7 @@ class TestMatchLinkedInProfile:
     async def test_parses_linkedin_match_result(self, mocker):
         """Test that match_linkedin_profile parses match result."""
         # Arrange
-        mock_response = "Confidence: 90\nReasoning: Name and institution match"
+        mock_response = '{"confidence": 90, "reasoning": "Name and institution match"}'
         mocker.patch(
             "src.utils.llm_helpers.call_llm_with_retry",
             new_callable=AsyncMock,
@@ -267,7 +274,7 @@ class TestMatchNames:
     async def test_parses_name_match_decision(self, mocker):
         """Test that match_names parses decision and confidence."""
         # Arrange
-        mock_response = "Decision: Yes\nConfidence: 95\nReasoning: Same person"
+        mock_response = '{"decision": "yes", "confidence": 95, "reasoning": "Same person"}'
         mocker.patch(
             "src.utils.llm_helpers.call_llm_with_retry",
             new_callable=AsyncMock,
@@ -278,7 +285,7 @@ class TestMatchNames:
         result = await match_names(name1="J. Smith", name2="Jane Smith")
 
         # Assert
-        assert result["decision"] == "Yes"
+        assert result["decision"] == "yes"
         assert result["confidence"] == 95
         assert result["reasoning"] == "Same person"
 
@@ -290,7 +297,7 @@ class TestScoreAbstractRelevance:
     async def test_parses_relevance_score(self, mocker):
         """Test that score_abstract_relevance parses relevance score."""
         # Arrange
-        mock_response = "Relevance: 80\nReasoning: Highly relevant to ML"
+        mock_response = '{"relevance": 80, "reasoning": "Highly relevant to ML"}'
         mocker.patch(
             "src.utils.llm_helpers.call_llm_with_retry",
             new_callable=AsyncMock,

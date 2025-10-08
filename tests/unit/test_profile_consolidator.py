@@ -198,6 +198,94 @@ class TestProfileConsolidation:
                     sample_user_profile_full, sample_university_config
                 )
 
+    @pytest.mark.asyncio
+    async def test_json_response_without_code_blocks(
+        self, consolidator, sample_user_profile_full, sample_university_config
+    ):
+        """Test JSON parsing when LLM returns raw JSON without code blocks."""
+        # Arrange
+        mock_llm_response = '{"summary": "Test summary", "keywords": ["AI", "ML"]}'
+
+        with patch(
+            "src.agents.profile_consolidator.call_llm_with_retry",
+            new_callable=AsyncMock,
+        ) as mock_llm:
+            mock_llm.return_value = mock_llm_response
+
+            # Act
+            profile = await consolidator.consolidate(
+                sample_user_profile_full, sample_university_config
+            )
+
+            # Assert
+            assert profile.streamlined_interests == "Test summary"
+
+    @pytest.mark.asyncio
+    async def test_json_response_with_json_code_blocks(
+        self, consolidator, sample_user_profile_full, sample_university_config
+    ):
+        """Test JSON parsing when LLM returns JSON in ```json code blocks."""
+        # Arrange
+        mock_llm_response = '```json\n{"summary": "Summary from JSON block", "keywords": ["keyword1", "keyword2"]}\n```'
+
+        with patch(
+            "src.agents.profile_consolidator.call_llm_with_retry",
+            new_callable=AsyncMock,
+        ) as mock_llm:
+            mock_llm.return_value = mock_llm_response
+
+            # Act
+            profile = await consolidator.consolidate(
+                sample_user_profile_full, sample_university_config
+            )
+
+            # Assert
+            assert profile.streamlined_interests == "Summary from JSON block"
+
+    @pytest.mark.asyncio
+    async def test_json_response_with_generic_code_blocks(
+        self, consolidator, sample_user_profile_full, sample_university_config
+    ):
+        """Test JSON parsing when LLM returns JSON in generic ``` code blocks."""
+        # Arrange
+        mock_llm_response = '```\n{"summary": "Summary from generic block", "keywords": ["test"]}\n```'
+
+        with patch(
+            "src.agents.profile_consolidator.call_llm_with_retry",
+            new_callable=AsyncMock,
+        ) as mock_llm:
+            mock_llm.return_value = mock_llm_response
+
+            # Act
+            profile = await consolidator.consolidate(
+                sample_user_profile_full, sample_university_config
+            )
+
+            # Assert
+            assert profile.streamlined_interests == "Summary from generic block"
+
+    @pytest.mark.asyncio
+    async def test_malformed_json_fallback(
+        self, consolidator, sample_user_profile_full, sample_university_config
+    ):
+        """Test fallback when LLM returns malformed JSON."""
+        # Arrange
+        mock_llm_response = "This is not valid JSON but still useful text"
+
+        with patch(
+            "src.agents.profile_consolidator.call_llm_with_retry",
+            new_callable=AsyncMock,
+        ) as mock_llm:
+            mock_llm.return_value = mock_llm_response
+
+            # Act
+            profile = await consolidator.consolidate(
+                sample_user_profile_full, sample_university_config
+            )
+
+            # Assert
+            assert profile.streamlined_interests == mock_llm_response
+
 
 class TestEducationExtraction:
     """Test education extraction functionality."""

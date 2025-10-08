@@ -31,7 +31,7 @@ Example Usage:
 import json
 import jsonlines
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 from pydantic import BaseModel
 
 
@@ -75,7 +75,7 @@ class CheckpointManager:
                 f"Failed to save batch {batch_id} for phase {phase}: {e}"
             ) from e
 
-    def load_batches(self, phase: str) -> list[dict]:
+    def load_batches(self, phase: str) -> list[dict[str, Any]]:
         """
         Load all completed batches for a phase.
 
@@ -90,7 +90,7 @@ class CheckpointManager:
             IOError: If checkpoint files cannot be read
         """
         batch_files = sorted(self.checkpoint_dir.glob(f"{phase}-batch-*.jsonl"))
-        records: dict[str, dict] = {}
+        records: dict[str, dict[str, Any]] = {}
 
         for batch_file in batch_files:
             try:
@@ -200,6 +200,6 @@ class CheckpointManager:
         try:
             with open(self.completion_marker_file, "r") as f:
                 markers = json.load(f)
-                return markers.get(phase, False)
+                return bool(markers.get(phase, False))
         except (json.JSONDecodeError, IOError):
             return False

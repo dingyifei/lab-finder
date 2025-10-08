@@ -31,7 +31,7 @@ import logging
 import sys
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 import structlog
 from structlog.stdlib import BoundLogger
 from structlog.types import EventDict, WrappedLogger
@@ -177,7 +177,7 @@ def get_logger(
     if component:
         logger = logger.bind(component=component)
 
-    return logger
+    return cast(BoundLogger, logger)
 
 
 # Initialize logging on module import with default settings

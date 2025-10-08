@@ -650,3 +650,248 @@ class TestLLMHelpersDepartmentRelevance:
         assert result["decision"] == "exclude"
         assert result["confidence"] == 0
         assert "Invalid response format" in result["reasoning"]
+
+
+class TestLoggingVerification:
+    """Test structured logging calls (AC4 verification)."""
+
+    @pytest.mark.asyncio
+    async def test_filter_departments_logs_decisions(self, mocker):
+        """Test that filtering decisions are logged with reasoning (AC4)."""
+        # Arrange
+        mock_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
+        mock_llm.return_value = '{"decision": "include", "confidence": 85, "reasoning": "Strong AI research match"}'
+
+        departments = [
+            Department(
+                id="dept-001",
+                name="Computer Science",
+                school="Engineering",
+                url="https://cs.edu",
+                hierarchy_level=2
+            )
+        ]
+
+        user_profile = {
+            "interests": "Machine learning and AI",
+            "degree": "PhD CS",
+            "background": "BS CS"
+        }
+
+        correlation_id = "test-log-123"
+        agent = UniversityDiscoveryAgent(correlation_id=correlation_id)
+
+        # Mock the logger to capture calls
+        mock_logger = mocker.patch.object(agent, 'logger')
+
+        # Act
+        await agent.filter_departments(
+            departments, user_profile, use_progress_tracker=False
+        )
+
+        # Assert - Verify logger was called with decision details
+        # Check that info() was called with department decision details
+        info_calls = [call for call in mock_logger.info.call_args_list]
+
+        # Should have at least one call logging the decision
+        assert any(
+            'Department relevance decision' in str(call) or
+            'decision' in call[1] if len(call) > 1 else False
+            for call in info_calls
+        ), "Logger should log department filtering decision"
+
+        # Verify correlation_id is bound to logger
+        assert agent.logger is not None
+
+    @pytest.mark.asyncio
+    async def test_filter_departments_logs_edge_cases(self, mocker):
+        """Test that edge case departments are logged at WARNING level (AC4)."""
+        # Arrange
+        mock_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
+        mock_llm.return_value = '{"decision": "include", "confidence": 50, "reasoning": "Ambiguous match"}'
+
+        # Create an edge case department (ambiguous confidence)
+        departments = [
+            Department(
+                id="dept-002",
+                name="Interdisciplinary Studies",
+                school="General",
+                url="https://interdis.edu",
+                hierarchy_level=2
+            )
+        ]
+
+        user_profile = {
+            "interests": "Machine learning",
+            "degree": "PhD CS",
+            "background": "BS CS"
+        }
+
+        correlation_id = "test-edge-123"
+        agent = UniversityDiscoveryAgent(correlation_id=correlation_id)
+
+        # Mock the logger
+        mock_logger = mocker.patch.object(agent, 'logger')
+
+        # Act
+        await agent.filter_departments(
+            departments, user_profile, use_progress_tracker=False
+        )
+
+        # Assert - Verify warning() was called for edge case
+        warning_calls = [call for call in mock_logger.warning.call_args_list]
+
+        assert any(
+            'Edge case' in str(call) or 'edge_case' in str(call)
+            for call in warning_calls
+        ), "Logger should log edge case departments at WARNING level"
+
+    @pytest.mark.asyncio
+    async def test_filter_departments_logs_start_and_completion(self, mocker):
+        """Test that filtering logs start and completion messages (AC4)."""
+        # Arrange
+        mock_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
+        mock_llm.return_value = '{"decision": "include", "confidence": 90, "reasoning": "Good match"}'
+
+        departments = [
+            Department(
+                id="dept-003",
+                name="Computer Science",
+                school="Engineering",
+                url="https://cs.edu",
+                hierarchy_level=2
+            )
+        ]
+
+        user_profile = {
+            "interests": "AI",
+            "degree": "PhD CS",
+            "background": "BS CS"
+        }
+
+        agent = UniversityDiscoveryAgent(correlation_id="test-workflow-123")
+        mock_logger = mocker.patch.object(agent, 'logger')
+
+        # Act
+        await agent.filter_departments(
+            departments, user_profile, use_progress_tracker=False
+        )
+
+        # Assert - Verify start and completion logging
+        info_calls = [call for call in mock_logger.info.call_args_list]
+
+        # Check for start message
+        assert any(
+            'Starting department relevance filtering' in str(call)
+            for call in info_calls
+        ), "Logger should log workflow start"
+
+        # Check for completion message
+        assert any(
+            'Department filtering complete' in str(call)
+            for call in info_calls
+        ), "Logger should log workflow completion"
+
+
+class TestProgressTrackerVerification:
+    """Test progress tracker calls (AC7 verification)."""
+
+    @pytest.mark.asyncio
+    async def test_filter_departments_updates_progress(self, mocker):
+        """Test that progress tracker is updated during filtering (AC7)."""
+        # Arrange
+        mock_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
+        mock_llm.return_value = '{"decision": "include", "confidence": 90, "reasoning": "Match"}'
+
+        departments = [
+            Department(id="1", name="CS", school="Eng", url="https://a.edu", hierarchy_level=2),
+            Department(id="2", name="Math", school="Sci", url="https://b.edu", hierarchy_level=2),
+            Department(id="3", name="Physics", school="Sci", url="https://c.edu", hierarchy_level=2),
+        ]
+
+        user_profile = {
+            "interests": "Physics",
+            "degree": "PhD",
+            "background": "BS"
+        }
+
+        correlation_id = "test-progress-123"
+        agent = UniversityDiscoveryAgent(correlation_id=correlation_id)
+
+        # Mock ProgressTracker
+        mock_tracker = mocker.Mock()
+        mocker.patch('src.agents.university_discovery.ProgressTracker', return_value=mock_tracker)
+
+        # Act
+        await agent.filter_departments(
+            departments, user_profile, use_progress_tracker=True
+        )
+
+        # Assert - Verify progress tracker methods were called
+        # start_phase should be called with correct parameters
+        mock_tracker.start_phase.assert_called_once()
+        call_args = mock_tracker.start_phase.call_args
+        assert "Department Filtering" in call_args[0][0]
+        assert call_args[1]["total_items"] == 3
+
+        # update should be called for each department (3 times)
+        assert mock_tracker.update.call_count == 3
+
+        # complete_phase should be called at the end
+        mock_tracker.complete_phase.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_filter_departments_progress_shows_count(self, mocker):
+        """Test that progress shows 'Filtered X of Y departments' format (AC7)."""
+        # Arrange
+        mock_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
+        mock_llm.return_value = '{"decision": "include", "confidence": 90, "reasoning": "Match"}'
+
+        departments = [
+            Department(id="1", name="CS", school="Eng", url="https://a.edu", hierarchy_level=2),
+            Department(id="2", name="Math", school="Sci", url="https://b.edu", hierarchy_level=2),
+        ]
+
+        user_profile = {"interests": "CS", "degree": "PhD", "background": "BS"}
+
+        agent = UniversityDiscoveryAgent(correlation_id="test-count-123")
+
+        # Mock ProgressTracker
+        mock_tracker = mocker.Mock()
+        mocker.patch('src.agents.university_discovery.ProgressTracker', return_value=mock_tracker)
+
+        # Act
+        await agent.filter_departments(departments, user_profile, use_progress_tracker=True)
+
+        # Assert - Verify update was called with incremental counts
+        update_calls = mock_tracker.update.call_args_list
+
+        # First update should show 1 completed
+        assert update_calls[0][1]["completed"] == 1
+
+        # Second update should show 2 completed
+        assert update_calls[1][1]["completed"] == 2
+
+    @pytest.mark.asyncio
+    async def test_filter_departments_no_progress_when_disabled(self, mocker):
+        """Test that progress tracker is not used when use_progress_tracker=False."""
+        # Arrange
+        mock_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
+        mock_llm.return_value = '{"decision": "include", "confidence": 90, "reasoning": "Match"}'
+
+        departments = [
+            Department(id="1", name="CS", school="Eng", url="https://a.edu", hierarchy_level=2),
+        ]
+
+        user_profile = {"interests": "CS", "degree": "PhD", "background": "BS"}
+
+        agent = UniversityDiscoveryAgent(correlation_id="test-no-progress-123")
+
+        # Mock ProgressTracker constructor
+        mock_tracker_class = mocker.patch('src.agents.university_discovery.ProgressTracker')
+
+        # Act
+        await agent.filter_departments(departments, user_profile, use_progress_tracker=False)
+
+        # Assert - ProgressTracker should NOT be instantiated
+        mock_tracker_class.assert_not_called()

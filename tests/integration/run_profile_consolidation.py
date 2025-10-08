@@ -39,8 +39,8 @@ async def main():
     with open(university_config_path) as f:
         university_config = json.load(f)
 
-    print(f"[OK] Loaded user_profile.json")
-    print(f"[OK] Loaded university_config.json")
+    print("[OK] Loaded user_profile.json")
+    print("[OK] Loaded university_config.json")
     print()
 
     # Initialize ProfileConsolidator
