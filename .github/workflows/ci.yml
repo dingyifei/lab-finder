@@ -164,7 +164,10 @@ jobs:
         run: pytest tests/integration/ -v --no-cov
         env:
           CI: true  # Flag to enable MCP mocking in tests
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_ACTION: bypassPermissions
+          DISABLE_TELEMETRY: true
+          FORCE_CODE_TERMINAL: true
 
       - name: Upload test results on failure
         uses: actions/upload-artifact@v4
