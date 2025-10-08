@@ -268,7 +268,22 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 - Story 2.4 complete - Error handling (100/100 QA score)
 - Story 2.5 complete - Batch configuration
 
+**Epic 3: Professor Discovery (IN PROGRESS)**
+- Story 3.1a complete - Professor model + basic discovery (100/100 QA score) ✅
+- Story 3.1b - Parallel processing (next)
+- Story 3.1c - Deduplication + rate limiting (pending)
+- Story 3.2 - Professor filtering (pending)
+
 ### Key Insights
+
+**Epic 3 (Story 3.1a):**
+- Professor model: `data_quality_flags`, research areas, lab affiliations, profile tracking
+- Discovery agent: ClaudeSDKClient with WebFetch/Playwright fallback, retry logic (3 attempts, exponential backoff)
+- Department loading: Loads from `checkpoints/phase-1-relevant-departments.jsonl`, filters for is_relevant=True
+- Data quality flags: `scraped_with_playwright_fallback`, `missing_email`, `missing_research_areas`, `missing_lab_affiliation`, `ambiguous_lab`
+- ID generation: SHA256 hash of `name:department_id` (first 16 chars)
+- Key pattern: ClaudeSDKClient class with `setting_sources=None` prevents codebase context injection
+- 17 comprehensive tests (7 unit + 10 integration), all passing
 
 **Epic 2:**
 - Department model: `data_quality_flags`, `is_relevant`, `relevance_reasoning` fields
@@ -285,15 +300,15 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 
 ### Next Steps
 
-**Immediate:** Begin Epic 3 (Professor Discovery), verify `checkpoints/phase-1-relevant-departments.jsonl` output from Epic 2
+**Immediate:** Story 3.1b (Parallel Processing & Batch Coordination) - Add batch processing and parallel discovery to professor_filter.py
 
-**Following:** Epic 3 (Professor Discovery) → Epic 4 (Lab Intelligence) → Epics 5&6 (parallel) → Epic 7 (Fitness) → Epic 8 (Reports)
+**Following:** Story 3.1c (Deduplication) → Story 3.2 (Filtering) → Epic 4 (Lab Intelligence) → Epics 5&6 (parallel) → Epic 7 (Fitness) → Epic 8 (Reports)
 
 ### Current Environment
 
-**Working Components:** Validation, credential management, checkpoints, logging, LLM helpers, progress tracking, MCP client, profile consolidation, university discovery, department filtering
+**Working Components:** Validation, credential management, checkpoints, logging, LLM helpers, progress tracking, MCP client, profile consolidation, university discovery, department filtering, professor model, professor discovery
 
-**Test Status:** 255+ tests passing, 87%+ coverage (Epic 2 complete), ruff ✅, mypy ✅
+**Test Status:** 272+ tests passing (255 from Epics 1-2 + 17 from Story 3.1a), ruff ✅, mypy ✅
 
 ## Documentation References
 
