@@ -33,7 +33,7 @@ async with ClaudeSDKClient(options=options) as client:
 
 **Architecture:** Monolithic multi-agent pipeline with 8 phases, checkpoint-based resumability.
 
-**Status:** Epic 1 complete ✅ | Epic 2 complete ✅ | Last updated 2025-10-07
+**Status:** Epic 1 complete ✅ | Epic 2 complete ✅ | Last updated 2025-10-08
 
 ## Quick Reference Commands
 
@@ -270,11 +270,20 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 
 **Epic 3: Professor Discovery (IN PROGRESS)**
 - Story 3.1a complete - Professor model + basic discovery (100/100 QA score) ✅
-- Story 3.1b - Parallel processing (next)
-- Story 3.1c - Deduplication + rate limiting (pending)
+- Story 3.1b complete - Parallel processing + batch coordination (90/100 QA score) ✅
+- Story 3.1c - Deduplication + rate limiting (next)
 - Story 3.2 - Professor filtering (pending)
 
 ### Key Insights
+
+**Epic 3 (Story 3.1b):**
+- Parallel processing: `discover_professors_parallel()` using asyncio.gather() with Semaphore concurrency control
+- Hierarchical correlation IDs: `prof-discovery-coordinator`, `prof-disc-{dept.id}-{uuid}`
+- Progress tracking: Integrated ProgressTracker with real-time department processing updates
+- Error handling: Graceful degradation - failed departments don't block overall processing
+- Concurrency control: Configurable `max_concurrent` parameter with Semaphore enforcement
+- Testing: 7 new tests covering parallel execution, semaphore limits, progress tracking, error handling, edge cases
+- Key improvement: Progress tracking in finally block for reliability (QA refactoring)
 
 **Epic 3 (Story 3.1a):**
 - Professor model: `data_quality_flags`, research areas, lab affiliations, profile tracking
@@ -283,7 +292,7 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 - Data quality flags: `scraped_with_playwright_fallback`, `missing_email`, `missing_research_areas`, `missing_lab_affiliation`, `ambiguous_lab`
 - ID generation: SHA256 hash of `name:department_id` (first 16 chars)
 - Key pattern: ClaudeSDKClient class with `setting_sources=None` prevents codebase context injection
-- 17 comprehensive tests (7 unit + 10 integration), all passing
+- 10 comprehensive tests (basic discovery + edge cases), all passing
 
 **Epic 2:**
 - Department model: `data_quality_flags`, `is_relevant`, `relevance_reasoning` fields
@@ -300,15 +309,15 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 
 ### Next Steps
 
-**Immediate:** Story 3.1b (Parallel Processing & Batch Coordination) - Add batch processing and parallel discovery to professor_filter.py
+**Immediate:** Story 3.1c (Deduplication + Rate Limiting) - Add professor deduplication across departments with rate limiting
 
-**Following:** Story 3.1c (Deduplication) → Story 3.2 (Filtering) → Epic 4 (Lab Intelligence) → Epics 5&6 (parallel) → Epic 7 (Fitness) → Epic 8 (Reports)
+**Following:** Story 3.2 (Professor Filtering) → Story 3.3 (Confidence Scoring) → Story 3.4 (Filtered Professor Logging) → Epic 4 (Lab Intelligence) → Epics 5&6 (parallel) → Epic 7 (Fitness) → Epic 8 (Reports)
 
 ### Current Environment
 
-**Working Components:** Validation, credential management, checkpoints, logging, LLM helpers, progress tracking, MCP client, profile consolidation, university discovery, department filtering, professor model, professor discovery
+**Working Components:** Validation, credential management, checkpoints, logging, LLM helpers, progress tracking, MCP client, profile consolidation, university discovery, department filtering, professor model, professor discovery, parallel professor discovery
 
-**Test Status:** 272+ tests passing (255 from Epics 1-2 + 17 from Story 3.1a), ruff ✅, mypy ✅
+**Test Status:** 272+ tests passing (255 from Epics 1-2 + 17 from Stories 3.1a+3.1b), ruff ✅, mypy ✅
 
 ## Documentation References
 
