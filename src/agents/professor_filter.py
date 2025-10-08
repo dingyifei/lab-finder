@@ -1109,6 +1109,108 @@ async def filter_professor_single(
         }
 
 
+async def filter_professor_batch_parallel(
+    batch: list[Professor],
+    profile_dict: dict[str, str],
+    correlation_id: str,
+    max_concurrent: int = 5,
+) -> list[Professor]:
+    """Filter batch of professors in parallel with semaphore rate limiting.
+
+    Story 3.5: Task 7 - Parallel LLM calls within batch
+
+    Uses asyncio.Semaphore to limit concurrent LLM calls and prevent API throttling.
+    All professors in batch are processed simultaneously (up to semaphore limit).
+
+    Args:
+        batch: List of Professor models to filter
+        profile_dict: User profile dict from load_user_profile()
+        correlation_id: Correlation ID for logging
+        max_concurrent: Maximum concurrent LLM calls (default: 5)
+
+    Returns:
+        List of Professor models with filter results applied
+    """
+    logger = get_logger(
+        correlation_id=correlation_id,
+        phase="professor_filtering",
+        component="professor_filter",
+    )
+
+    # Create semaphore for rate limiting (Story 3.5 Task 7)
+    semaphore = asyncio.Semaphore(max_concurrent)
+
+    logger.debug(
+        f"Processing batch with {len(batch)} professors (max {max_concurrent} concurrent)"
+    )
+
+    async def filter_with_limit(professor: Professor) -> Professor:
+        """Filter single professor with semaphore rate limiting."""
+        async with semaphore:
+            # Generate unique correlation ID for this professor
+            prof_correlation_id = f"{correlation_id}-{professor.id}"
+
+            try:
+                # Call filtering function (Story 3.2)
+                filter_result = await filter_professor_single(
+                    professor, profile_dict, prof_correlation_id
+                )
+
+                # Update professor model fields
+                professor.is_relevant = filter_result["decision"] == "include"
+                professor.relevance_confidence = filter_result["confidence"]
+                professor.relevance_reasoning = filter_result["reasoning"]
+
+                # Add confidence validation flags (Story 3.3)
+                for flag in filter_result.get("flags", []):
+                    professor.add_quality_flag(flag)
+
+                # Add data quality flags
+                if filter_result["confidence"] == 0:
+                    professor.add_quality_flag("llm_filtering_failed")
+
+                return professor
+
+            except Exception as e:
+                # Story 3.5 Task 8: Individual professor failure handling
+                logger.error(
+                    "Failed to filter professor in batch",
+                    professor=professor.name,
+                    error=str(e),
+                )
+                # Inclusive fallback
+                professor.is_relevant = True
+                professor.relevance_confidence = 0
+                professor.relevance_reasoning = f"Filter error: {str(e)[:100]}"
+                professor.add_quality_flag("llm_filtering_failed")
+                return professor
+
+    # Launch all LLM filter calls in parallel (Story 3.5 Task 7)
+    tasks = [filter_with_limit(p) for p in batch]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Process results (handle any exceptions that weren't caught)
+    filtered_batch: list[Professor] = []
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            # Unexpected exception from gather - apply inclusive fallback
+            logger.error(
+                "Unexpected exception in batch processing",
+                professor=batch[i].name,
+                error=str(result),
+            )
+            batch[i].is_relevant = True
+            batch[i].relevance_confidence = 0
+            batch[i].relevance_reasoning = f"Unexpected error: {str(result)[:100]}"
+            batch[i].add_quality_flag("llm_filtering_failed")
+            filtered_batch.append(batch[i])
+        elif isinstance(result, Professor):
+            # Normal case: result is a Professor
+            filtered_batch.append(result)
+
+    return filtered_batch
+
+
 async def filter_professors(correlation_id: str) -> list[Professor]:
     """Main orchestration function for professor filtering workflow.
 
@@ -1145,7 +1247,14 @@ async def filter_professors(correlation_id: str) -> list[Professor]:
     # Load system parameters
     logger.info("Step 2: Loading system parameters")
     system_params = SystemParams.load()
-    batch_size = system_params.batch_config.professor_discovery_batch_size
+    batch_size = system_params.batch_config.professor_filtering_batch_size
+
+    # Log loaded batch configuration (Story 3.5 Task 1)
+    logger.info(
+        "Loaded batch configuration",
+        professor_filtering_batch_size=batch_size,
+        max_concurrent_llm_calls=system_params.rate_limiting.max_concurrent_llm_calls,
+    )
 
     # Load checkpoint manager
     checkpoint_manager = CheckpointManager()
@@ -1186,80 +1295,71 @@ async def filter_professors(correlation_id: str) -> list[Professor]:
         resume_from_batch=resume_batch,
     )
 
+    # Get max concurrent LLM calls from config (Story 3.5 Task 7)
+    max_concurrent = system_params.rate_limiting.max_concurrent_llm_calls
+
     for batch_num in range(resume_batch, total_batches):
         start_idx = batch_num * batch_size
         end_idx = min(start_idx + batch_size, len(all_professors))
         batch_professors = all_professors[start_idx:end_idx]
 
         logger.info(
-            f"Processing batch {batch_num + 1}/{total_batches}",
+            f"Processing batch {batch_num + 1}/{total_batches} with {len(batch_professors)} parallel LLM calls (max {max_concurrent} concurrent)",
             batch_size=len(batch_professors),
         )
 
-        # Update batch progress
+        # Update batch progress (Story 3.5 Task 6)
         tracker.update_batch(
             batch_num=batch_num + 1,
             total_batches=total_batches,
             batch_desc=f"Professors {start_idx + 1}-{end_idx}",
         )
 
-        # Filter each professor in batch
-        for professor in batch_professors:
-            try:
-                # Generate unique correlation ID for this professor
-                prof_correlation_id = f"{correlation_id}-{professor.id}"
+        # Story 3.5 Task 7: Filter batch in parallel with semaphore
+        try:
+            filtered_batch = await filter_professor_batch_parallel(
+                batch=batch_professors,
+                profile_dict=profile_dict,
+                correlation_id=f"{correlation_id}-batch-{batch_num + 1}",
+                max_concurrent=max_concurrent,
+            )
 
-                # Call filtering function
-                filter_result = await filter_professor_single(
-                    professor, profile_dict, prof_correlation_id
-                )
-
-                # Update professor model fields
-                professor.is_relevant = filter_result["decision"] == "include"
-                professor.relevance_confidence = filter_result["confidence"]
-                professor.relevance_reasoning = filter_result["reasoning"]
-
-                # Story 3.3 Task 4: Add confidence validation flags
-                for flag in filter_result.get("flags", []):
-                    professor.add_quality_flag(flag)
-
-                # Add data quality flags
-                if filter_result["confidence"] == 0:
-                    professor.add_quality_flag("llm_filtering_failed")
-
-                # Count results
+            # Count results
+            for professor in filtered_batch:
                 if professor.is_relevant:
                     included_count += 1
                 else:
                     excluded_count += 1
 
-            except Exception as e:
-                logger.error(
-                    "Failed to filter professor",
-                    professor=professor.name,
-                    error=str(e),
-                )
-                # Inclusive fallback
-                professor.is_relevant = True
-                professor.relevance_confidence = 0
-                professor.relevance_reasoning = f"Filter error: {str(e)[:100]}"
-                professor.add_quality_flag("llm_filtering_failed")
-                failed_count += 1
-                included_count += 1
+                # Count failures
+                if "llm_filtering_failed" in professor.data_quality_flags:
+                    failed_count += 1
 
-            processed_count += 1
+            processed_count += len(filtered_batch)
             tracker.update(completed=processed_count)
 
-        # Task 4.1: Save batch checkpoint
-        logger.info(
-            f"Saving batch {batch_num + 1} checkpoint",
-            batch_size=len(batch_professors),
-        )
-        checkpoint_manager.save_batch(
-            phase="phase-2-filter",
-            batch_id=batch_num + 1,
-            data=batch_professors,
-        )
+            # Story 3.5 Task 5: Save batch checkpoint
+            logger.info(
+                f"Saving batch {batch_num + 1} checkpoint",
+                batch_size=len(filtered_batch),
+                included=sum(1 for p in filtered_batch if p.is_relevant),
+                excluded=sum(1 for p in filtered_batch if not p.is_relevant),
+            )
+            checkpoint_manager.save_batch(
+                phase="phase-2-filter",
+                batch_id=batch_num + 1,
+                data=filtered_batch,
+            )
+
+        except Exception as e:
+            # Story 3.5 Task 8: Batch infrastructure failure handling
+            logger.error(
+                f"Batch {batch_num + 1} processing infrastructure failed",
+                error=str(e),
+                correlation_id=correlation_id,
+            )
+            # Re-raise to prevent data consistency issues
+            raise
 
     # Complete progress tracking
     tracker.complete_phase()

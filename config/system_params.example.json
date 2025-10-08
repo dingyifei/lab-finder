@@ -2,6 +2,7 @@
   "batch_config": {
     "department_discovery_batch_size": 5,
     "professor_discovery_batch_size": 10,
+    "professor_filtering_batch_size": 15,
     "publication_retrieval_batch_size": 20,
     "linkedin_matching_batch_size": 15
   },
@@ -10,6 +11,9 @@
     "linkedin": 10,
     "paper_search": 20
   },
+  "rate_limiting": {
+    "max_concurrent_llm_calls": 5
+  },
   "timeouts": {
     "web_scraping": 30,
     "mcp_query": 60
@@ -17,6 +21,11 @@
   "confidence_thresholds": {
     "professor_filter": 70.0,
     "linkedin_match": 75.0
+  },
+  "filtering_config": {
+    "low_confidence_threshold": 70,
+    "high_confidence_threshold": 90,
+    "borderline_review_enabled": true
   },
   "publication_years": 3,
   "log_level": "INFO"

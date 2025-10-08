@@ -14,12 +14,14 @@ class BatchConfig(BaseModel):
 
     department_discovery_batch_size: int = Field(default=5, gt=0, lt=100)
     professor_discovery_batch_size: int = Field(default=10, gt=0, lt=100)
+    professor_filtering_batch_size: int = Field(default=15, gt=0, lt=100)
     publication_retrieval_batch_size: int = Field(default=20, gt=0, lt=100)
     linkedin_matching_batch_size: int = Field(default=15, gt=0, lt=100)
 
     @field_validator(
         "department_discovery_batch_size",
         "professor_discovery_batch_size",
+        "professor_filtering_batch_size",
         "publication_retrieval_batch_size",
         "linkedin_matching_batch_size",
     )
@@ -39,6 +41,20 @@ class RateLimits(BaseModel):
     archive_org: int = Field(default=30, gt=0)
     linkedin: int = Field(default=10, gt=0)
     paper_search: int = Field(default=20, gt=0)
+
+
+class RateLimiting(BaseModel):
+    """Rate limiting for concurrent operations.
+
+    Story 3.5: Task 7
+    """
+
+    max_concurrent_llm_calls: int = Field(
+        default=5,
+        gt=0,
+        le=20,
+        description="Maximum concurrent LLM API calls within batch processing"
+    )
 
 
 class Timeouts(BaseModel):
@@ -93,6 +109,7 @@ class SystemParams(BaseModel):
 
     batch_config: BatchConfig = Field(default_factory=BatchConfig)
     rate_limits: RateLimits = Field(default_factory=RateLimits)
+    rate_limiting: RateLimiting = Field(default_factory=RateLimiting)
     timeouts: Timeouts = Field(default_factory=Timeouts)
     confidence_thresholds: ConfidenceThresholds = Field(
         default_factory=ConfidenceThresholds

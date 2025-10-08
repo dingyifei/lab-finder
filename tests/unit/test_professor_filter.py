@@ -399,7 +399,8 @@ class TestFilterProfessors:
             "src.agents.professor_filter.SystemParams.load"
         )
         mock_params = Mock()
-        mock_params.batch_config.professor_discovery_batch_size = 2
+        mock_params.batch_config.professor_filtering_batch_size = 2
+        mock_params.rate_limiting.max_concurrent_llm_calls = 3
         mock_params.confidence_thresholds.professor_filter = 70.0
         mock_params.filtering_config.low_confidence_threshold = 70
         mock_params.filtering_config.high_confidence_threshold = 90
@@ -449,6 +450,19 @@ class TestFilterProfessors:
         mock_tracker_instance = Mock()
         mock_tracker.return_value = mock_tracker_instance
 
+        # Mock additional Story 3.3/3.4 functions
+        mocker.patch("src.agents.professor_filter.apply_manual_overrides", return_value=0)
+        mocker.patch(
+            "src.agents.professor_filter.calculate_confidence_stats",
+            return_value={
+                "total_professors": 2,
+                "included": {"high": 1, "medium": 0, "low": 0},
+                "excluded": {"high": 0, "medium": 0, "low": 1},
+                "distribution_analysis": {"quality_assessment": "Good"},
+            },
+        )
+        mocker.patch("src.agents.professor_filter.save_confidence_stats_report")
+
         # Act
         result = await filter_professors("test-correlation-id")
 
@@ -481,7 +495,8 @@ class TestFilterProfessors:
             "src.agents.professor_filter.SystemParams.load"
         )
         mock_params = Mock()
-        mock_params.batch_config.professor_discovery_batch_size = 10
+        mock_params.batch_config.professor_filtering_batch_size = 10
+        mock_params.rate_limiting.max_concurrent_llm_calls = 3
         mock_params.confidence_thresholds.professor_filter = 70.0
         mock_params.filtering_config.low_confidence_threshold = 70
         mock_params.filtering_config.high_confidence_threshold = 90
@@ -535,7 +550,8 @@ class TestFilterProfessors:
             "src.agents.professor_filter.SystemParams.load"
         )
         mock_params = Mock()
-        mock_params.batch_config.professor_discovery_batch_size = 10
+        mock_params.batch_config.professor_filtering_batch_size = 10
+        mock_params.rate_limiting.max_concurrent_llm_calls = 3
         mock_system_params.return_value = mock_params
 
         mock_checkpoint = mocker.patch("src.agents.professor_filter.CheckpointManager")
@@ -567,7 +583,8 @@ class TestFilterProfessors:
             "src.agents.professor_filter.SystemParams.load"
         )
         mock_params = Mock()
-        mock_params.batch_config.professor_discovery_batch_size = 10
+        mock_params.batch_config.professor_filtering_batch_size = 10
+        mock_params.rate_limiting.max_concurrent_llm_calls = 3
         mock_params.confidence_thresholds.professor_filter = 70.0
         mock_params.filtering_config.low_confidence_threshold = 70
         mock_params.filtering_config.high_confidence_threshold = 90

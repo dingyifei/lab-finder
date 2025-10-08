@@ -4,30 +4,44 @@
   "description": "System execution and batch processing parameters",
   "type": "object",
   "properties": {
-    "batch_sizes": {
+    "batch_config": {
       "type": "object",
-      "description": "Batch sizes for parallel processing",
+      "description": "Batch configuration for parallel processing",
       "properties": {
-        "departments": {
+        "department_discovery_batch_size": {
           "type": "integer",
           "description": "Number of departments to process in parallel",
           "default": 5,
           "minimum": 1,
-          "maximum": 20
+          "maximum": 99
         },
-        "professors": {
+        "professor_discovery_batch_size": {
           "type": "integer",
-          "description": "Number of professors to filter in parallel",
-          "default": 20,
-          "minimum": 5,
-          "maximum": 50
-        },
-        "labs": {
-          "type": "integer",
-          "description": "Number of labs to analyze in parallel",
+          "description": "Number of professors to discover per batch (optimized for web scraping)",
           "default": 10,
           "minimum": 1,
-          "maximum": 30
+          "maximum": 99
+        },
+        "professor_filtering_batch_size": {
+          "type": "integer",
+          "description": "Number of professors to filter per batch (optimized for LLM API rate limits)",
+          "default": 15,
+          "minimum": 1,
+          "maximum": 99
+        },
+        "publication_retrieval_batch_size": {
+          "type": "integer",
+          "description": "Number of publications to retrieve per batch",
+          "default": 20,
+          "minimum": 1,
+          "maximum": 99
+        },
+        "linkedin_matching_batch_size": {
+          "type": "integer",
+          "description": "Number of LinkedIn profiles to match per batch",
+          "default": 15,
+          "minimum": 1,
+          "maximum": 99
         }
       }
     },
@@ -52,6 +66,19 @@
           "description": "Paper search requests per minute",
           "default": 20,
           "minimum": 5
+        }
+      }
+    },
+    "rate_limiting": {
+      "type": "object",
+      "description": "Rate limiting for concurrent operations",
+      "properties": {
+        "max_concurrent_llm_calls": {
+          "type": "integer",
+          "description": "Maximum concurrent LLM API calls within batch processing",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 20
         }
       }
     },

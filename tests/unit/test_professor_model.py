@@ -135,5 +135,6 @@ def test_professor_data_quality_flags_constant():
         "llm_response_error",  # Added in Story 3.3
         "manual_override",  # Added in Story 3.3
         "confidence_out_of_range",  # Added in Story 3.3
+        "manual_addition",  # Added in Story 3.4
     }
     assert PROFESSOR_DATA_QUALITY_FLAGS == expected_flags
