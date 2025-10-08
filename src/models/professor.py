@@ -16,6 +16,7 @@ PROFESSOR_DATA_QUALITY_FLAGS = {
     "llm_response_error",  # Malformed LLM response (Story 3.3)
     "manual_override",  # User manual override (Story 3.3)
     "confidence_out_of_range",  # Confidence clamped to 0-100 range (Story 3.3)
+    "manual_addition",  # User manually added professor (Story 3.4)
 }
 
 

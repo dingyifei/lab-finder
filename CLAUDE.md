@@ -273,8 +273,8 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 - Story 3.1b complete - Parallel processing + batch coordination (90/100 QA score) ✅
 - Story 3.1c complete - Deduplication + rate limiting + checkpointing (95/100 QA score) ✅
 - Story 3.2 complete - LLM-based professor filtering (95/100 QA score) ✅
-- Story 3.3 - Confidence scoring (next)
-- Story 3.4 - Filtered professor logging (pending)
+- Story 3.3 complete - Confidence scoring (95/100 QA score) ✅
+- Story 3.4 complete - Filtered professor logging (95/100 QA score) ✅
 
 ### Key Insights
 
@@ -309,6 +309,18 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 - Output artifacts: `output/borderline-professors.md`, `output/filter-confidence-stats.json`
 - Testing: 32 comprehensive tests (100% AC coverage), ruff ✅, mypy ✅
 - QA score: 95/100 - exceptional quality, production-ready
+
+**Epic 3 (Story 3.4):**
+- Transparency reporting: `generate_filter_report()` creates comprehensive filtered-professors.md with executive summary, department statistics, excluded/included professors
+- Filter decision logging: `log_filter_decision()` logs all filtering decisions to structlog with full context
+- Statistics calculation: `calculate_filter_statistics()` with edge case handling (empty list, all included/excluded)
+- Manual additions: `load_manual_additions()` + `apply_manual_additions()` enables user overrides with checkpoint saving
+- Report structure: Executive summary → Department breakdown → Excluded professors (by confidence) → Included professors → Detailed reasoning → Override instructions
+- Cross-referencing: Links to borderline-professors.md for low-confidence decisions requiring review
+- Data quality flag: Added `manual_addition` to PROFESSOR_DATA_QUALITY_FLAGS
+- UTF-8 encoding: Applied throughout for Windows cross-platform compatibility
+- Testing: 17 comprehensive tests (100% AC coverage), all edge cases covered, ruff ✅, mypy ✅
+- QA score: 95/100 - production-ready, excellent code quality
 
 **Epic 3 (Story 3.2):**
 - Professor filtering: LLM-based research alignment using `filter_professor_research()` from llm_helpers
@@ -346,15 +358,15 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 
 ### Next Steps
 
-**Immediate:** Story 3.4 (Filtered Professor Logging) - Add structured logging for filtered professor decisions
+**Immediate:** Epic 4 (Lab Intelligence) - Lab website scraping and analysis
 
-**Following:** Epic 4 (Lab Intelligence) → Epics 5&6 (parallel) → Epic 7 (Fitness) → Epic 8 (Reports)
+**Following:** Epics 5&6 (parallel: Publications + LinkedIn) → Epic 7 (Fitness) → Epic 8 (Reports)
 
 ### Current Environment
 
-**Working Components:** Validation, credential management, checkpoints, logging, LLM helpers, progress tracking, MCP client, profile consolidation, university discovery, department filtering, professor model, professor discovery, parallel professor discovery, deduplication, rate limiting, professor filtering, confidence scoring
+**Working Components:** Validation, credential management, checkpoints, logging, LLM helpers, progress tracking, MCP client, profile consolidation, university discovery, department filtering, professor model, professor discovery, parallel professor discovery, deduplication, rate limiting, professor filtering, confidence scoring, filtered professor logging
 
-**Test Status:** 326+ tests passing (255 from Epics 1-2 + 24 from Stories 3.1a+3.1b+3.1c + 15 from Story 3.2 + 32 from Story 3.3), ruff ✅, mypy ✅
+**Test Status:** 343 tests passing (255 from Epics 1-2 + 24 from Stories 3.1a+3.1b+3.1c + 15 from Story 3.2 + 32 from Story 3.3 + 17 from Story 3.4), ruff ✅, mypy ✅
 
 ## Documentation References
 
