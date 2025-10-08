@@ -130,5 +130,7 @@ def test_professor_data_quality_flags_constant():
         "missing_research_areas",
         "missing_lab_affiliation",
         "ambiguous_lab",
+        "llm_filtering_failed",  # Added in Story 3.2
+        "low_confidence_filter",  # Added in Story 3.2
     }
     assert PROFESSOR_DATA_QUALITY_FLAGS == expected_flags
