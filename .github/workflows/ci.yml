@@ -149,6 +149,11 @@ jobs:
         with:
           node-version: '18'
 
+      - name: Install Claude Code CLI
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          echo "Claude Code CLI installed"
+
       - name: Setup MCP mocking for CI
         run: |
           echo "CI environment detected - integration tests will use mocked MCP servers"
@@ -159,6 +164,7 @@ jobs:
         run: pytest tests/integration/ -v --no-cov
         env:
           CI: true  # Flag to enable MCP mocking in tests
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Upload test results on failure
         uses: actions/upload-artifact@v4
