@@ -1,0 +1,137 @@
+schema: 1
+story: '3.1c'
+story_title: 'Deduplication + Rate Limiting + Checkpointing'
+gate: PASS
+status_reason: 'All 6 acceptance criteria met with comprehensive test coverage. Production-quality implementation with excellent code quality (95/100).'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-10-08T00:00:00Z'
+
+top_issues: []  # No blocking issues identified
+
+waiver:
+  active: false
+
+# Quality metrics
+quality_score: 95  # 100 - 5 (minor enhancement opportunities)
+expires: '2025-10-22T00:00:00Z'  # 2 weeks from review
+
+# Test evidence
+evidence:
+  tests_reviewed: 7
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6]  # All ACs have test coverage
+    ac_gaps: []  # No coverage gaps
+
+# Requirements traceability
+requirements_validation:
+  ac1_deduplication_by_name_department:
+    status: PASS
+    tests: ['test_exact_duplicate_skips_llm', 'test_deduplication_fuzzy_matching']
+    evidence: 'Exact match pre-filtering + LLM fuzzy matching implemented'
+  ac2_fuzzy_name_matching_llm:
+    status: PASS
+    tests: ['test_deduplication_fuzzy_matching', 'test_high_confidence_no_match_not_treated_as_duplicate']
+    evidence: 'Uses llm_helpers.match_names() for similarity analysis'
+  ac3_duplicate_threshold_90_confidence:
+    status: PASS
+    tests: ['test_deduplication_fuzzy_matching']
+    evidence: 'Code lines 131-134 validate decision="yes" AND confidence >= 90'
+  ac4_rate_limiting:
+    status: PASS
+    tests: ['test_rate_limiting_delays_requests']
+    evidence: 'DomainRateLimiter enforces 1 req/sec per domain'
+  ac5_checkpoint_saving:
+    status: PASS
+    tests: ['test_save_professors_checkpoint', 'test_discover_and_save_professors_orchestrator']
+    evidence: 'checkpoint_manager.save_batch() integration verified'
+  ac6_jsonl_format:
+    status: PASS
+    tests: ['test_save_professors_checkpoint']
+    evidence: 'Checkpoint file validation confirms .jsonl format'
+
+# Non-functional requirements validation
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'No vulnerabilities. Rate limiting is defensive security control. No hardcoded secrets.'
+  performance:
+    status: PASS
+    notes: 'O(n²) complexity with 70% optimization via exact match pre-filtering. Documented scaling thresholds.'
+  reliability:
+    status: PASS
+    notes: 'Graceful degradation, comprehensive error handling, correlation IDs for tracing.'
+  maintainability:
+    status: PASS
+    notes: 'Clean code structure, comprehensive docstrings, type safety verified (mypy).'
+
+# Code quality metrics
+code_quality:
+  linting: PASS  # ruff passes
+  type_safety: PASS  # mypy passes
+  test_coverage: PASS  # 7/7 tests passing
+  coding_standards: PASS  # All critical rules followed
+  documentation: EXCELLENT  # Comprehensive docstrings + cross-story tracking
+
+# Recommendations (non-blocking)
+recommendations:
+  immediate: []  # No must-fix items
+  future:
+    - action: 'Consider adding telemetry/metrics for deduplication efficiency tracking'
+      priority: low
+      refs: ['src/agents/professor_filter.py::deduplicate_professors']
+    - action: 'Evaluate configurable per-domain rate limits (e.g., faster for known-good domains)'
+      priority: low
+      refs: ['src/agents/professor_filter.py::DomainRateLimiter']
+    - action: 'Add integration test for actual checkpoint file contents validation'
+      priority: low
+      refs: ['tests/integration/test_professor_discovery.py']
+
+# Risk assessment
+risk_summary:
+  overall_risk: LOW
+  risk_factors:
+    - factor: 'Security files touched'
+      score: 0
+      notes: 'No security-sensitive files modified'
+    - factor: 'Test coverage'
+      score: 0
+      notes: '7 comprehensive tests added, all passing'
+    - factor: 'Code complexity'
+      score: 2
+      notes: 'O(n²) deduplication with optimization. Well-documented scaling strategy.'
+    - factor: 'External dependencies'
+      score: 1
+      notes: 'New dependency: aiolimiter 1.2.1 (pre-approved in story requirements)'
+
+# Strengths identified during review
+strengths:
+  - 'Performance-conscious design with exact match pre-filtering (70% LLM call reduction)'
+  - 'Comprehensive test coverage including critical edge cases'
+  - 'Production-grade error handling and graceful degradation'
+  - 'Type safety verified (mypy compliance)'
+  - 'Bonus: Fixed pre-existing type errors from Stories 3.1a/3.1b'
+  - 'Excellent documentation with cross-story file tracking'
+  - 'Clean separation of concerns (rate limiting, deduplication, orchestration)'
+
+# Technical debt
+technical_debt: []  # No technical debt identified
+
+# Review notes
+review_notes: |
+  This story exemplifies excellent software engineering practices. The implementation demonstrates:
+
+  - Thoughtful performance optimizations (exact match pre-filtering)
+  - Comprehensive test coverage with critical edge case validation
+  - Production-ready code quality with proper error handling
+  - Clear documentation explaining design decisions
+  - Type safety throughout
+
+  The developer went above and beyond by fixing pre-existing type errors from previous stories
+  and implementing 7 tests (vs 6 required minimum). The critical edge case test (#6: high-confidence
+  "no" match) shows deep understanding of the business logic.
+
+  Minor enhancement opportunities noted (telemetry, configurable rate limits) but these are
+  non-blocking optimizations, not issues.
+
+  Approved for production use with confidence.

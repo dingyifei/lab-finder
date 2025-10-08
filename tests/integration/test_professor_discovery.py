@@ -5,11 +5,15 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from src.agents.professor_filter import (
+    DomainRateLimiter,
+    deduplicate_professors,
+    discover_and_save_professors,
     discover_professors_for_department,
     discover_professors_parallel,
     discover_with_playwright_fallback,
     generate_professor_id,
     load_relevant_departments,
+    merge_professor_records,
     parse_professor_data,
 )
 from src.models.department import Department
@@ -508,3 +512,271 @@ async def test_single_department(mocker):
 
     # Should handle single department correctly
     assert len(professors) == 1
+
+
+# ===========================================
+# Story 3.1c: Deduplication, Rate Limiting, and Checkpointing Tests
+# ===========================================
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_deduplication_fuzzy_matching(mocker):
+    """Test deduplication with LLM-based fuzzy name matching.
+
+    Story 3.1c: Test #1
+    """
+    # Mock llm_helpers.match_names to return dict with correct lowercase "yes"
+    mocker.patch(
+        "src.agents.professor_filter.match_names",
+        return_value={"decision": "yes", "confidence": 95, "reasoning": "Same person"},
+    )
+
+    professors = [
+        Professor(
+            id="p1",
+            name="Dr. Jane Smith",
+            department_id="d1",
+            department_name="CS",
+            title="Professor",
+            profile_url="test1",
+        ),
+        Professor(
+            id="p2",
+            name="Jane A. Smith",
+            department_id="d1",
+            department_name="CS",
+            title="Professor",
+            profile_url="test2",
+        ),
+    ]
+
+    unique = await deduplicate_professors(professors)
+
+    # Should merge to 1 professor (decision="yes" AND confidence >= 90)
+    assert len(unique) == 1
+    assert unique[0].name in ["Dr. Jane Smith", "Jane A. Smith"]  # Merged record
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_rate_limiting_delays_requests():
+    """Test that rate limiting enforces delays between requests.
+
+    Story 3.1c: Test #2
+    """
+    import time
+
+    rate_limiter = DomainRateLimiter(default_rate=2.0, time_period=1.0)  # 2 per second
+
+    start = time.time()
+
+    # Make 5 requests to same domain
+    for i in range(5):
+        await rate_limiter.acquire("https://example.edu/dept")
+
+    duration = time.time() - start
+
+    # Should take at least 1.4 seconds for 5 requests at 2/sec
+    # (First 2 instant, then 3 more at 0.5s intervals = 1.5s total)
+    # Allow small margin for timing precision
+    assert duration >= 1.4
+
+
+@pytest.mark.integration
+def test_save_professors_checkpoint(tmp_path, mocker):
+    """Test saving professors to checkpoint in JSONL format.
+
+    Story 3.1c: Test #3
+    """
+    from src.utils.checkpoint_manager import CheckpointManager
+
+    checkpoint_manager = CheckpointManager(checkpoint_dir=str(tmp_path))
+    professors = [
+        Professor(
+            id="p1",
+            name="Jane",
+            title="Prof",
+            department_id="d1",
+            department_name="CS",
+            profile_url="test",
+        )
+    ]
+
+    checkpoint_manager.save_batch(
+        phase="phase-2-professors", batch_id=1, data=professors
+    )
+
+    # Verify JSONL file created
+    checkpoint_file = tmp_path / "phase-2-professors-batch-1.jsonl"
+    assert checkpoint_file.exists()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_exact_duplicate_skips_llm(mocker):
+    """Test that exact duplicates skip LLM calls for efficiency.
+
+    Story 3.1c: Test #4
+    """
+    # Mock match_names - should NOT be called for exact duplicates
+    mock_match = mocker.patch("src.agents.professor_filter.match_names")
+
+    professors = [
+        Professor(
+            id="p1",
+            name="Jane Smith",
+            department_id="d1",
+            department_name="CS",
+            title="Professor",
+            profile_url="test",
+        ),
+        Professor(
+            id="p2",
+            name="Jane Smith",  # Exact duplicate
+            department_id="d1",
+            department_name="CS",
+            title="Professor",
+            profile_url="test",
+        ),
+    ]
+
+    unique = await deduplicate_professors(professors)
+
+    # Should detect exact duplicate without calling LLM
+    mock_match.assert_not_called()
+    assert len(unique) == 1
+
+
+@pytest.mark.integration
+def test_merge_professor_records():
+    """Test merging professor records prefers more complete data.
+
+    Story 3.1c: Test #5
+    """
+    existing = Professor(
+        id="p1",
+        name="Jane",
+        title="Prof",
+        department_id="d1",
+        department_name="CS",
+        profile_url="test",
+        email=None,
+        research_areas=[],
+    )
+    new = Professor(
+        id="p2",
+        name="Jane",
+        title="Prof",
+        department_id="d1",
+        department_name="CS",
+        profile_url="test",
+        email="jane@edu",
+        research_areas=["AI", "ML"],
+    )
+
+    merged = merge_professor_records(existing, new)
+
+    # Should take email and research_areas from new
+    assert merged.email == "jane@edu"
+    assert "AI" in merged.research_areas
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_high_confidence_no_match_not_treated_as_duplicate(mocker):
+    """Verify high-confidence 'no' decisions don't cause incorrect merges.
+
+    Story 3.1c: Test #6 (Critical Edge Case)
+    """
+    # Mock: High confidence that these are DIFFERENT people
+    mocker.patch(
+        "src.agents.professor_filter.match_names",
+        return_value={
+            "decision": "no",
+            "confidence": 95,
+            "reasoning": "Different people with similar names",
+        },
+    )
+
+    professors = [
+        Professor(
+            id="p1",
+            name="Jane Smith",
+            department_id="d1",
+            department_name="CS",
+            title="Professor",
+            profile_url="test1",
+        ),
+        Professor(
+            id="p2",
+            name="Jane A. Smith",
+            department_id="d1",
+            department_name="CS",
+            title="Professor",
+            profile_url="test2",
+        ),
+    ]
+
+    unique = await deduplicate_professors(professors)
+
+    # Should NOT merge despite high confidence (because decision is "no")
+    assert len(unique) == 2
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_discover_and_save_professors_orchestrator(mocker, tmp_path):
+    """Test the complete orchestrator workflow.
+
+    Story 3.1c: Integration test for discover_and_save_professors
+    """
+    # Mock discover_professors_parallel
+    mock_professors = [
+        Professor(
+            id="p1",
+            name="Jane Smith",
+            department_id="d1",
+            department_name="CS",
+            title="Professor",
+            profile_url="test1",
+        ),
+        Professor(
+            id="p2",
+            name="John Doe",
+            department_id="d2",
+            department_name="Biology",
+            title="Professor",
+            profile_url="test2",
+        ),
+    ]
+    mocker.patch(
+        "src.agents.professor_filter.discover_professors_parallel",
+        return_value=mock_professors,
+    )
+
+    # Mock deduplicate_professors
+    mocker.patch(
+        "src.agents.professor_filter.deduplicate_professors",
+        return_value=mock_professors,
+    )
+
+    # Mock CheckpointManager
+    mock_checkpoint_manager = MagicMock()
+    mocker.patch(
+        "src.agents.professor_filter.CheckpointManager",
+        return_value=mock_checkpoint_manager,
+    )
+
+    depts = [
+        Department(id="d1", name="CS", url="https://cs.edu", is_relevant=True),
+        Department(id="d2", name="Biology", url="https://bio.edu", is_relevant=True),
+    ]
+
+    result = await discover_and_save_professors(departments=depts, batch_id=1)
+
+    # Verify all steps executed
+    assert len(result) == 2
+    mock_checkpoint_manager.save_batch.assert_called_once_with(
+        phase="phase-2-professors", batch_id=1, data=mock_professors
+    )
