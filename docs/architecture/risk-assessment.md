@@ -6,9 +6,9 @@ This section documents architectural risks and mitigation strategies based on Cl
 
 **1. Multi-Agent Orchestration Uncertainty** → RESOLVED
 - **Original Risk:** Uncertainty about SDK support for hierarchical multi-agent coordination
-- **Resolution:** SDK provides native AgentDefinition support with automatic parallel execution
-- **Evidence:** Research validated full compatibility with designed architecture
-- **Impact:** Development can proceed as planned with no architectural changes
+- **Resolution:** SDK provides native AgentDefinition support for agent definition; parallel execution implemented at application-level using asyncio.gather()
+- **Evidence:** Research validated AgentDefinition for agent creation; Story 3.1 v0.5 provides reference implementation for parallel execution patterns
+- **Impact:** Development can proceed as planned; parallel execution achieved via application-level asyncio patterns (not SDK automatic parallelization)
 
 **2. Web Scraping Tool Availability** → RESOLVED
 - **Original Risk:** Unclear if SDK provides built-in web scraping capabilities
@@ -86,7 +86,7 @@ This section documents architectural risks and mitigation strategies based on Cl
 **Risk:** Web scraping and LinkedIn access may trigger rate limits or account blocks
 
 **Mitigation Strategies:**
-- Implement aiolimiter for per-domain rate limiting (configurable in system-parameters.json)
+- Implement aiolimiter for per-domain rate limiting (configurable in system_params.json)
 - Use mcp-linkedin server's internal rate limiting (no application queue needed)
 - Exponential backoff retry logic (tenacity library) for failed requests
 - Batch processing with configurable delays between batches

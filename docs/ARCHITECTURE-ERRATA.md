@@ -349,13 +349,17 @@ Based on the architecture corrections in Issue #2, analysis revealed that Storie
 
 ### Root Cause
 
-During architecture review for Issue #2 (MCP Server Configuration), it was discovered that:
+⚠️ **UPDATE 2025-10-07:** This root cause analysis contains an incorrect assumption about SDK parallel execution. See correction below.
+
+During architecture review for Issue #2 (MCP Server Configuration), it was initially believed that:
 
 1. **Claude Agent SDK automatically handles:**
-   - Parallel sub-agent execution via `AgentDefinition` instances
-   - Automatic retry logic for MCP tool failures
-   - Low-level error handling for STDIO transport failures
-   - Connection pooling and rate limiting
+   - ~~Parallel sub-agent execution via `AgentDefinition` instances~~ ❌ **INCORRECT** - Parallel execution is application-level (asyncio.gather())
+   - Automatic retry logic for MCP tool failures ✅ CORRECT
+   - Low-level error handling for STDIO transport failures ✅ CORRECT
+   - Connection pooling and rate limiting ✅ CORRECT
+
+**CORRECTION (2025-10-07):** Parallel execution is implemented at the application level using `asyncio.gather()` with Semaphore concurrency control, NOT automatically by the SDK. See Story 3.1 v0.5 for correct implementation patterns.
 
 2. **Original Story 6.2 Tasks (now unnecessary):**
    - Task 1: Implement parallel LinkedIn profile matching ❌ SDK handles via parallel sub-agents

@@ -45,106 +45,151 @@ logger = structlog.get_logger(__name__)
 
 # Prompt Templates
 
-DEPARTMENT_RELEVANCE_TEMPLATE = """Given the user's research interests: {interests}
+DEPARTMENT_RELEVANCE_TEMPLATE = """Analyze whether this department is relevant to the user's research profile.
 
-Is the department "{department_name}" relevant to these interests?
+<user_profile>
+<research_interests>{interests}</research_interests>
+<degree>{degree}</degree>
+<background>{background}</background>
+</user_profile>
 
-Department Description:
-{description}
+<department>
+<name>{department_name}</name>
+<school>{school}</school>
+</department>
 
-Respond with:
-- Yes/No
-- Brief reasoning (1-2 sentences)
+<guidelines>
+- Include if ANY potential research overlap exists
+- Include interdisciplinary departments
+- Exclude only obviously unrelated departments
+</guidelines>
 
-Format your response as:
-Decision: [Yes/No]
-Reasoning: [your reasoning]
+<examples>
+Example 1:
+User: Machine learning, AI
+Department: Computer Science (School of Engineering)
+Output: {{"decision": "include", "confidence": 95, "reasoning": "Direct match - CS department covers ML and AI research"}}
+
+Example 2:
+User: Machine learning, AI
+Department: English Literature (School of Humanities)
+Output: {{"decision": "exclude", "confidence": 90, "reasoning": "No overlap between computational research and literary studies"}}
+
+Example 3:
+User: Machine learning, AI
+Department: Computational Biology (School of Medicine)
+Output: {{"decision": "include", "confidence": 75, "reasoning": "Interdisciplinary overlap - computational methods apply to biology"}}
+</examples>
+
+Return ONLY valid JSON in this exact format (no markdown code blocks, no additional text):
+{{"decision": "include" or "exclude", "confidence": 0-100, "reasoning": "brief explanation"}}
 """
 
-PROFESSOR_FILTER_TEMPLATE = """Given the user's research profile:
+PROFESSOR_FILTER_TEMPLATE = """Evaluate how well this professor's research aligns with the user's interests.
+
+<user_profile>
 {profile}
+</user_profile>
 
-Does Professor {name} with the following research areas match the user's interests?
+<professor>
+<name>{name}</name>
+<research_areas>{research_areas}</research_areas>
+<bio>{bio}</bio>
+</professor>
 
-Professor Research Areas:
-{research_areas}
-
-Professor Bio/Description (if available):
-{bio}
-
+<task>
 Provide:
-- Confidence score (0-100)
-- Reasoning for the score
+1. Confidence score (0-100) indicating research alignment
+2. Brief reasoning explaining the score
+</task>
 
-Format your response as:
-Confidence: [0-100]
-Reasoning: [your reasoning]
+<scoring_guide>
+0-20: No overlap
+21-40: Minimal overlap
+41-60: Moderate overlap
+61-80: Strong overlap
+81-100: Excellent match
+</scoring_guide>
+
+Return ONLY valid JSON (no markdown code blocks):
+{{"confidence": 0-100, "reasoning": "brief explanation"}}
 """
 
-LINKEDIN_MATCH_TEMPLATE = """Does this LinkedIn profile match the lab member?
+LINKEDIN_MATCH_TEMPLATE = """Determine if this LinkedIn profile matches the lab member.
 
-Lab Member Name: {member_name}
-University/Institution: {university}
-Department/Lab: {lab_name}
+<lab_member>
+<name>{member_name}</name>
+<university>{university}</university>
+<lab>{lab_name}</lab>
+</lab_member>
 
-LinkedIn Profile Data:
+<linkedin_profile>
 {profile_data}
+</linkedin_profile>
 
-Determine if these refer to the same person. Provide:
-- Confidence score (0-100)
-- Reasoning
+<task>
+Determine if these refer to the same person by analyzing:
+1. Name similarity
+2. University/institution match
+3. Department/lab affiliation
+4. Research areas or job titles
 
-Format your response as:
-Confidence: [0-100]
-Reasoning: [your reasoning]
+Provide confidence score (0-100) and reasoning.
+</task>
+
+Return ONLY valid JSON (no markdown code blocks):
+{{"confidence": 0-100, "reasoning": "brief explanation"}}
 """
 
-NAME_MATCH_TEMPLATE = """Are these the same person?
+NAME_MATCH_TEMPLATE = """Determine if these two names refer to the same person.
 
-Name 1: {name1}
-Name 2: {name2}
+<names>
+<name1>{name1}</name1>
+<name2>{name2}</name2>
+</names>
 
-Additional Context:
+<context>
 {context}
+</context>
 
+<guidelines>
 Consider:
 - Name variations (nicknames, middle names, initials)
 - Cultural naming conventions
 - Academic naming patterns (Dr., Prof., etc.)
+- Common name spelling variations
+</guidelines>
 
-Provide:
-- Yes/No decision
-- Confidence score (0-100)
-- Reasoning
-
-Format your response as:
-Decision: [Yes/No]
-Confidence: [0-100]
-Reasoning: [your reasoning]
+Return ONLY valid JSON (no markdown code blocks):
+{{"decision": "yes" or "no", "confidence": 0-100, "reasoning": "brief explanation"}}
 """
 
 ABSTRACT_RELEVANCE_TEMPLATE = """Rate the relevance of this paper abstract to the user's research interests.
 
-User Research Interests:
+<user_research_interests>
 {interests}
+</user_research_interests>
 
-Paper Abstract:
-{abstract}
+<paper>
+<title>{title}</title>
+<abstract>{abstract}</abstract>
+</paper>
 
-Paper Title: {title}
+<scoring_guide>
+0-20: Not relevant
+21-40: Tangentially related
+41-60: Moderately relevant
+61-80: Highly relevant
+81-100: Directly aligned
+</scoring_guide>
 
-Provide:
-- Relevance score (0-100)
-  - 0-20: Not relevant
-  - 21-40: Tangentially related
-  - 41-60: Moderately relevant
-  - 61-80: Highly relevant
-  - 81-100: Directly aligned
-- Reasoning for the score
+<task>
+Analyze how well the paper's content aligns with the user's research interests.
+Provide a relevance score (0-100) and brief reasoning.
+</task>
 
-Format your response as:
-Relevance: [0-100]
-Reasoning: [your reasoning]
+Return ONLY valid JSON (no markdown code blocks):
+{{"relevance": 0-100, "reasoning": "brief explanation"}}
 """
 
 
@@ -176,29 +221,44 @@ async def call_llm_with_retry(
         - Uses tenacity for retry with exponential backoff
         - Logs all LLM calls at DEBUG level
         - Waits 2s, 4s, 8s between retries (exponential)
+        - Uses claude_agent_sdk.ClaudeSDKClient for LLM calls
     """
+    from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
+
     log = logger.bind(correlation_id=correlation_id) if correlation_id else logger
 
     log.debug("LLM call initiated", prompt_length=len(prompt))
 
     try:
-        # TODO: Replace with actual Claude SDK LLM call
-        # This is a placeholder for the actual implementation
-        # The Claude Agent SDK will provide the LLM client
-
-        # For now, raise NotImplementedError
-        # Actual implementation will be:
-        # response = await claude_client.messages.create(
-        #     model="claude-3-5-sonnet-20241022",
-        #     max_tokens=1024,
-        #     messages=[{"role": "user", "content": prompt}]
-        # )
-        # return response.content[0].text
-
-        raise NotImplementedError(
-            "LLM client not yet integrated. "
-            "Replace this with actual Claude SDK call in agent implementation."
+        # Use ClaudeSDKClient for LLM calls
+        # Configure for pure text analysis without codebase context
+        options = ClaudeAgentOptions(
+            max_turns=1,  # Stateless one-off operation
+            allowed_tools=[],  # Disable all tools (no Read, Write, Bash, etc.)
+            system_prompt="You are an expert text analyst. Respond directly to user prompts with the requested analysis.",
+            setting_sources=None  # Disable loading .claude/settings, CLAUDE.md, etc.
         )
+
+        response_text = ""
+
+        # Use async context manager for ClaudeSDKClient
+        async with ClaudeSDKClient(options=options) as client:
+            # Send the prompt
+            await client.query(prompt)
+
+            # Receive and collect the response
+            async for message in client.receive_response():
+                # Extract text content from response
+                if hasattr(message, "content") and message.content:
+                    for block in message.content:
+                        if hasattr(block, "text"):
+                            response_text += block.text
+
+        if not response_text:
+            raise ValueError("LLM returned empty response")
+
+        log.debug("LLM call succeeded", response_length=len(response_text))
+        return response_text.strip()
 
     except Exception as e:
         log.error("LLM call failed", error=str(e), prompt_length=len(prompt))
@@ -207,8 +267,10 @@ async def call_llm_with_retry(
 
 async def analyze_department_relevance(
     department_name: str,
-    department_description: str,
+    school: str,
     research_interests: str,
+    degree: str,
+    background: str,
     correlation_id: Optional[str] = None,
 ) -> dict[str, Any]:
     """
@@ -216,32 +278,65 @@ async def analyze_department_relevance(
 
     Args:
         department_name: Name of the department
-        department_description: Department description text
+        school: Parent school/college name
         research_interests: User's research interests
+        degree: User's degree program
+        background: User's educational background
         correlation_id: Optional correlation ID for logging
 
     Returns:
-        Dict with 'decision' (Yes/No) and 'reasoning' (str)
+        Dict with 'decision' ('include'/'exclude'), 'confidence' (0-100), and 'reasoning' (str)
     """
+    import json
+
     prompt = DEPARTMENT_RELEVANCE_TEMPLATE.format(
         interests=research_interests,
+        degree=degree,
+        background=background,
         department_name=department_name,
-        description=department_description,
+        school=school,
     )
 
     response = await call_llm_with_retry(prompt, correlation_id=correlation_id)
 
-    # Parse response (simple parsing, can be enhanced)
-    lines = response.strip().split("\n")
-    result = {"decision": "No", "reasoning": ""}
+    # Parse JSON response
+    try:
+        # Extract JSON from response (Claude might wrap it in markdown code blocks)
+        json_text = response.strip()
 
-    for line in lines:
-        if line.startswith("Decision:"):
-            result["decision"] = line.split(":", 1)[1].strip()
-        elif line.startswith("Reasoning:"):
-            result["reasoning"] = line.split(":", 1)[1].strip()
+        # Remove markdown code block markers if present
+        if json_text.startswith("```json"):
+            json_text = json_text[7:]  # Remove ```json
+        elif json_text.startswith("```"):
+            json_text = json_text[3:]  # Remove ```
 
-    return result
+        if json_text.endswith("```"):
+            json_text = json_text[:-3]  # Remove trailing ```
+
+        json_text = json_text.strip()
+
+        result = json.loads(json_text)
+
+        # Validate required fields
+        if "decision" not in result or "confidence" not in result or "reasoning" not in result:
+            logger.warning(
+                "LLM response missing required fields, using defaults",
+                response=response[:200],
+                correlation_id=correlation_id
+            )
+            return {"decision": "exclude", "confidence": 0, "reasoning": "Invalid response format"}
+
+        return result
+
+    except json.JSONDecodeError as e:
+        logger.error(
+            "Failed to parse JSON from LLM response",
+            error=str(e),
+            response=response[:200],
+            correlation_id=correlation_id
+        )
+        # Default to exclude on parse error
+        return {"decision": "exclude", "confidence": 0, "reasoning": "JSON parse error"}
 
 
 async def filter_professor_research(
@@ -264,6 +359,8 @@ async def filter_professor_research(
     Returns:
         Dict with 'confidence' (0-100) and 'reasoning' (str)
     """
+    import json
+
     prompt = PROFESSOR_FILTER_TEMPLATE.format(
         profile=user_profile,
         name=professor_name,
@@ -273,20 +370,44 @@ async def filter_professor_research(
 
     response = await call_llm_with_retry(prompt, correlation_id=correlation_id)
 
-    # Parse response
-    lines = response.strip().split("\n")
-    result = {"confidence": 0, "reasoning": ""}
+    # Parse JSON response
+    try:
+        # Extract JSON from response (Claude might wrap it in markdown code blocks)
+        json_text = response.strip()
 
-    for line in lines:
-        if line.startswith("Confidence:"):
-            try:
-                result["confidence"] = int(line.split(":", 1)[1].strip())
-            except ValueError:
-                result["confidence"] = 0
-        elif line.startswith("Reasoning:"):
-            result["reasoning"] = line.split(":", 1)[1].strip()
+        # Remove markdown code block markers if present
+        if json_text.startswith("```json"):
+            json_text = json_text[7:]  # Remove ```json
+        elif json_text.startswith("```"):
+            json_text = json_text[3:]  # Remove ```
 
-    return result
+        if json_text.endswith("```"):
+            json_text = json_text[:-3]  # Remove trailing ```
+
+        json_text = json_text.strip()
+
+        result = json.loads(json_text)
+
+        # Validate required fields
+        if "confidence" not in result or "reasoning" not in result:
+            logger.warning(
+                "LLM response missing required fields, using defaults",
+                response=response[:200],
+                correlation_id=correlation_id
+            )
+            return {"confidence": 0, "reasoning": "Invalid response format"}
+
+        return result
+
+    except json.JSONDecodeError as e:
+        logger.error(
+            "Failed to parse JSON from LLM response",
+            error=str(e),
+            response=response[:200],
+            correlation_id=correlation_id
+        )
+        # Default to low confidence on parse error
+        return {"confidence": 0, "reasoning": "JSON parse error"}
 
 
 async def match_linkedin_profile(
@@ -309,6 +430,8 @@ async def match_linkedin_profile(
     Returns:
         Dict with 'confidence' (0-100) and 'reasoning' (str)
     """
+    import json
+
     prompt = LINKEDIN_MATCH_TEMPLATE.format(
         member_name=member_name,
         university=university,
@@ -318,20 +441,44 @@ async def match_linkedin_profile(
 
     response = await call_llm_with_retry(prompt, correlation_id=correlation_id)
 
-    # Parse response
-    lines = response.strip().split("\n")
-    result = {"confidence": 0, "reasoning": ""}
+    # Parse JSON response
+    try:
+        # Extract JSON from response (Claude might wrap it in markdown code blocks)
+        json_text = response.strip()
 
-    for line in lines:
-        if line.startswith("Confidence:"):
-            try:
-                result["confidence"] = int(line.split(":", 1)[1].strip())
-            except ValueError:
-                result["confidence"] = 0
-        elif line.startswith("Reasoning:"):
-            result["reasoning"] = line.split(":", 1)[1].strip()
+        # Remove markdown code block markers if present
+        if json_text.startswith("```json"):
+            json_text = json_text[7:]  # Remove ```json
+        elif json_text.startswith("```"):
+            json_text = json_text[3:]  # Remove ```
 
-    return result
+        if json_text.endswith("```"):
+            json_text = json_text[:-3]  # Remove trailing ```
+
+        json_text = json_text.strip()
+
+        result = json.loads(json_text)
+
+        # Validate required fields
+        if "confidence" not in result or "reasoning" not in result:
+            logger.warning(
+                "LLM response missing required fields, using defaults",
+                response=response[:200],
+                correlation_id=correlation_id
+            )
+            return {"confidence": 0, "reasoning": "Invalid response format"}
+
+        return result
+
+    except json.JSONDecodeError as e:
+        logger.error(
+            "Failed to parse JSON from LLM response",
+            error=str(e),
+            response=response[:200],
+            correlation_id=correlation_id
+        )
+        # Default to low confidence on parse error
+        return {"confidence": 0, "reasoning": "JSON parse error"}
 
 
 async def match_names(
@@ -347,30 +494,54 @@ async def match_names(
         correlation_id: Optional correlation ID for logging
 
     Returns:
-        Dict with 'decision' (Yes/No), 'confidence' (0-100), and 'reasoning' (str)
+        Dict with 'decision' (yes/no), 'confidence' (0-100), and 'reasoning' (str)
     """
+    import json
+
     prompt = NAME_MATCH_TEMPLATE.format(
         name1=name1, name2=name2, context=context or "No additional context"
     )
 
     response = await call_llm_with_retry(prompt, correlation_id=correlation_id)
 
-    # Parse response
-    lines = response.strip().split("\n")
-    result = {"decision": "No", "confidence": 0, "reasoning": ""}
+    # Parse JSON response
+    try:
+        # Extract JSON from response (Claude might wrap it in markdown code blocks)
+        json_text = response.strip()
 
-    for line in lines:
-        if line.startswith("Decision:"):
-            result["decision"] = line.split(":", 1)[1].strip()
-        elif line.startswith("Confidence:"):
-            try:
-                result["confidence"] = int(line.split(":", 1)[1].strip())
-            except ValueError:
-                result["confidence"] = 0
-        elif line.startswith("Reasoning:"):
-            result["reasoning"] = line.split(":", 1)[1].strip()
+        # Remove markdown code block markers if present
+        if json_text.startswith("```json"):
+            json_text = json_text[7:]  # Remove ```json
+        elif json_text.startswith("```"):
+            json_text = json_text[3:]  # Remove ```
 
-    return result
+        if json_text.endswith("```"):
+            json_text = json_text[:-3]  # Remove trailing ```
+
+        json_text = json_text.strip()
+
+        result = json.loads(json_text)
+
+        # Validate required fields
+        if "decision" not in result or "confidence" not in result or "reasoning" not in result:
+            logger.warning(
+                "LLM response missing required fields, using defaults",
+                response=response[:200],
+                correlation_id=correlation_id
+            )
+            return {"decision": "no", "confidence": 0, "reasoning": "Invalid response format"}
+
+        return result
+
+    except json.JSONDecodeError as e:
+        logger.error(
+            "Failed to parse JSON from LLM response",
+            error=str(e),
+            response=response[:200],
+            correlation_id=correlation_id
+        )
+        # Default to no match on parse error
+        return {"decision": "no", "confidence": 0, "reasoning": "JSON parse error"}
 
 
 async def score_abstract_relevance(
@@ -391,23 +562,49 @@ async def score_abstract_relevance(
     Returns:
         Dict with 'relevance' (0-100) and 'reasoning' (str)
     """
+    import json
+
     prompt = ABSTRACT_RELEVANCE_TEMPLATE.format(
         interests=research_interests, abstract=abstract, title=paper_title
     )
 
     response = await call_llm_with_retry(prompt, correlation_id=correlation_id)
 
-    # Parse response
-    lines = response.strip().split("\n")
-    result = {"relevance": 0, "reasoning": ""}
+    # Parse JSON response
+    try:
+        # Extract JSON from response (Claude might wrap it in markdown code blocks)
+        json_text = response.strip()
 
-    for line in lines:
-        if line.startswith("Relevance:"):
-            try:
-                result["relevance"] = int(line.split(":", 1)[1].strip())
-            except ValueError:
-                result["relevance"] = 0
-        elif line.startswith("Reasoning:"):
-            result["reasoning"] = line.split(":", 1)[1].strip()
+        # Remove markdown code block markers if present
+        if json_text.startswith("```json"):
+            json_text = json_text[7:]  # Remove ```json
+        elif json_text.startswith("```"):
+            json_text = json_text[3:]  # Remove ```
 
-    return result
+        if json_text.endswith("```"):
+            json_text = json_text[:-3]  # Remove trailing ```
+
+        json_text = json_text.strip()
+
+        result = json.loads(json_text)
+
+        # Validate required fields
+        if "relevance" not in result or "reasoning" not in result:
+            logger.warning(
+                "LLM response missing required fields, using defaults",
+                response=response[:200],
+                correlation_id=correlation_id
+            )
+            return {"relevance": 0, "reasoning": "Invalid response format"}
+
+        return result
+
+    except json.JSONDecodeError as e:
+        logger.error(
+            "Failed to parse JSON from LLM response",
+            error=str(e),
+            response=response[:200],
+            correlation_id=correlation_id
+        )
+        # Default to low relevance on parse error
+        return {"relevance": 0, "reasoning": "JSON parse error"}

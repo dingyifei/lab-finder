@@ -198,12 +198,12 @@ so that **it can comprehensively search all relevant departments without manual 
 
 As a **user**,
 I want **the discovered department structure saved in JSON format**,
-so that **sub-agents can be delegated to process specific departments in parallel**.
+so that **departments can be processed in parallel using async tasks**.
 
 **Acceptance Criteria:**
 1. Department hierarchy represented in structured JSON (FR8)
 2. JSON includes: school name, division name, department name, department URL, hierarchy level
-3. JSON enables easy iteration and sub-agent delegation
+3. JSON enables easy iteration and parallel async processing
 4. File saved as intermediate result for resumability (NFR12)
 5. Human-readable formatting for manual review if needed
 6. Schema supports multi-level hierarchies (minimum 3 levels deep)
@@ -243,20 +243,23 @@ so that **the system doesn't waste time scraping departments with no relevant la
 
 **Goal:** Identify all professors within filtered departments, extract their lab affiliations and research areas, then use LLM-based analysis to filter professors whose research significantly deviates from the user's interests. This epic delivers a curated list of relevant professors with confidence scores and transparent filtering rationale.
 
-### Story 3.1: Multi-Agent Professor Discovery
+### Story 3.1: Parallel Professor Discovery
 
 As a **user**,
-I want **professors identified across all relevant departments using parallel sub-agents**,
+I want **professors identified across all relevant departments using parallel async processing**,
 so that **discovery is efficient even for large universities**.
 
 **Acceptance Criteria:**
-1. Sub-agents created for each department (or batch of departments) from Epic 2 output (FR10)
-2. Professor directory pages discovered and scraped
+1. Departments loaded from Epic 2 checkpoint output (FR10)
+2. Professor directory pages discovered and scraped using Claude Code WebFetch/WebSearch tools
 3. Professor names, titles, department affiliations extracted
 4. Lab affiliations identified where available
 5. Research area descriptions extracted from directory listings
-6. Built-in web tools used with Playwright fallback (NFR5)
-7. Results aggregated from all sub-agents into master professor list
+6. WebFetch/WebSearch tools used with explicit Playwright fallback when needed (NFR5)
+7. Results aggregated from parallel async tasks into master professor list
+8. Parallel processing uses Python asyncio.gather() with configurable concurrency limits
+
+**Note:** Story 3.1 v0.5 provides detailed implementation patterns including asyncio.gather() parallel execution.
 
 ### Story 3.2: LLM-Based Professor Research Field Filtering
 

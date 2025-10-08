@@ -26,22 +26,30 @@ class TestPromptTemplates:
         """Test that department relevance template formats correctly."""
         # Arrange
         interests = "machine learning, AI"
+        degree = "PhD Computer Science"
+        background = "BS in Computer Science"
         department_name = "Computer Science"
-        description = "Research in AI and ML"
+        school = "Engineering"
 
         # Act
         prompt = DEPARTMENT_RELEVANCE_TEMPLATE.format(
             interests=interests,
+            degree=degree,
+            background=background,
             department_name=department_name,
-            description=description,
+            school=school,
         )
 
         # Assert
         assert "machine learning, AI" in prompt
+        assert "PhD Computer Science" in prompt
+        assert "BS in Computer Science" in prompt
         assert "Computer Science" in prompt
-        assert "Research in AI and ML" in prompt
-        assert "Decision:" in prompt
-        assert "Reasoning:" in prompt
+        assert "Engineering" in prompt
+        assert "JSON format" in prompt
+        assert "decision" in prompt
+        assert "confidence" in prompt
+        assert "reasoning" in prompt
 
     def test_professor_filter_template_formatting(self):
         """Test that professor filter template formats correctly."""
@@ -122,15 +130,31 @@ class TestCallLLMWithRetry:
     """Test cases for call_llm_with_retry function."""
 
     @pytest.mark.asyncio
-    async def test_raises_not_implemented_for_placeholder(self):
-        """Test that call_llm_with_retry raises NotImplementedError (placeholder implementation)."""
+    async def test_llm_call_succeeds(self, mocker):
+        """Test that call_llm_with_retry successfully calls claude_agent_sdk.query()."""
         # Arrange
         prompt = "Test prompt"
 
-        # Act & Assert
-        # Note: NotImplementedError is not retried (only ConnectionError, TimeoutError)
-        with pytest.raises(NotImplementedError):
-            await call_llm_with_retry(prompt)
+        # Mock claude_agent_sdk.query to return a test response
+        mock_message = mocker.Mock()
+        mock_block = mocker.Mock()
+        mock_block.text = "Test LLM response"
+        mock_message.content = [mock_block]
+
+        # Create async generator for mock response
+        async def mock_query_response(prompt):
+            yield mock_message
+
+        # Patch at the source module (claude_agent_sdk)
+        mock_query = mocker.patch("claude_agent_sdk.query")
+        mock_query.return_value = mock_query_response(prompt)
+
+        # Act
+        response = await call_llm_with_retry(prompt)
+
+        # Assert
+        assert response == "Test LLM response"
+        mock_query.assert_called_once_with(prompt=prompt)
 
 
 class TestAnalyzeDepartmentRelevance:
@@ -140,7 +164,7 @@ class TestAnalyzeDepartmentRelevance:
     async def test_parses_llm_response_correctly(self, mocker):
         """Test that analyze_department_relevance parses LLM response."""
         # Arrange
-        mock_response = "Decision: Yes\nReasoning: Strong match for ML research"
+        mock_response = '{"decision": "include", "confidence": 95, "reasoning": "Strong match for ML research"}'
         mocker.patch(
             "src.utils.llm_helpers.call_llm_with_retry",
             new_callable=AsyncMock,
@@ -150,12 +174,15 @@ class TestAnalyzeDepartmentRelevance:
         # Act
         result = await analyze_department_relevance(
             department_name="Computer Science",
-            department_description="AI and ML research",
+            school="Engineering",
             research_interests="machine learning",
+            degree="PhD Computer Science",
+            background="BS in Computer Science",
         )
 
         # Assert
-        assert result["decision"] == "Yes"
+        assert result["decision"] == "include"
+        assert result["confidence"] == 95
         assert result["reasoning"] == "Strong match for ML research"
 
 

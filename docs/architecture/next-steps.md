@@ -26,7 +26,7 @@ This architecture document is ready for development. The recommended next steps 
 **Schemas to Create:**
 - `src/schemas/user-profile.schema.json` - User research profile
 - `src/schemas/university.schema.json` - University details
-- `src/schemas/system-parameters.schema.json` - Batch sizes, rate limits, etc.
+- `src/schemas/system_params.schema.json` - Batch sizes, rate limits, etc.
 
 **Validation:** Test schemas with sample config files from `tests/fixtures/`
 

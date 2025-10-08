@@ -95,19 +95,69 @@ class ProfileConsolidator:
         logger.debug("Streamlining research interests with LLM")  # type: ignore[attr-defined]
 
         interests_list = "\n".join(f"- {interest}" for interest in interests)
-        prompt = f"""Given the following research interests, create a concise 2-3 sentence summary that captures the core research focus and expertise areas.
 
-Research Interests:
+        prompt = f"""You are analyzing research interests to create a concise profile summary.
+
+<research_interests>
 {interests_list}
+</research_interests>
 
-Provide a clear, professional summary suitable for matching with lab research areas."""
+<task>
+Generate a JSON response with:
+1. A 2-3 sentence summary identifying the main research domain and key focus areas
+2. A list of 5-7 keyword phrases for research matching
+</task>
+
+<output_format>
+Return ONLY valid JSON in this exact format (no markdown code blocks, no additional text):
+{{"summary": "your summary text", "keywords": ["keyword1", "keyword2", "keyword3"]}}
+</output_format>
+
+<example>
+Input:
+- Developing novel machine learning algorithms for healthcare applications
+- Natural language processing for clinical documentation
+- Computer vision for medical imaging diagnosis
+
+Output:
+{{"summary": "The researcher focuses on applying artificial intelligence to healthcare, with expertise in machine learning algorithms, natural language processing for clinical text, and computer vision for medical imaging. Their work bridges AI and medicine to improve diagnostic and documentation systems.", "keywords": ["machine learning", "healthcare AI", "natural language processing", "computer vision", "medical imaging", "clinical applications", "diagnostic systems"]}}
+</example>
+
+Provide your JSON response:"""
 
         streamlined = await call_llm_with_retry(
             prompt, correlation_id="profile-consolidation"
         )
-        logger.debug("Research interests streamlined", length=len(streamlined))  # type: ignore[attr-defined]
 
-        return streamlined.strip()
+        # Parse JSON response
+        import json
+        try:
+            # Extract JSON from response (may be in markdown code blocks)
+            json_text = streamlined.strip()
+            if json_text.startswith("```json"):
+                json_text = json_text[7:]
+            elif json_text.startswith("```"):
+                json_text = json_text[3:]
+            if json_text.endswith("```"):
+                json_text = json_text[:-3]
+            json_text = json_text.strip()
+
+            result = json.loads(json_text)
+            summary = result.get("summary", streamlined.strip())
+            keywords = result.get("keywords", [])
+
+            logger.debug(  # type: ignore[attr-defined]
+                "Research interests streamlined",
+                summary_length=len(summary),
+                keywords_count=len(keywords),
+                keywords=keywords[:5] if keywords else []  # Log first 5 keywords
+            )
+            return summary
+
+        except json.JSONDecodeError:
+            # Fallback: use raw response if JSON parsing fails
+            logger.warning("Failed to parse JSON from LLM, using raw response")  # type: ignore[attr-defined]
+            return streamlined.strip()
 
     def _extract_education(self, resume_highlights: Dict[str, Any]) -> str:
         """

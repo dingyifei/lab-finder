@@ -20,8 +20,9 @@ This section defines the **DEFINITIVE technology selections** for the Lab Finder
 | Category | Technology | Version | Purpose | Rationale |
 |----------|-----------|---------|---------|-----------|
 | **Language** | Python | 3.11.7 | Primary development language | Modern async/await, pattern matching, LTS release with performance improvements |
-| **Framework** | Claude Agent SDK | latest | Multi-agent orchestration framework | Core framework per NFR1; provides agent delegation, tool integration |
-| **Agent Definition** | AgentDefinition | SDK built-in | Custom agent configuration | Programmatic agent definition with prompts, tools, model selection |
+| **Framework** | Claude Agent SDK | latest | Multi-agent orchestration framework | Core framework per NFR1; provides FREE LLM access via two modes: `query()` (stateless) and `ClaudeSDKClient()` (stateful) |
+| **SDK Mode 1** | `ClaudeSDKClient` | SDK built-in | One-off stateless LLM calls | PRIMARY MODE: Used for all text analysis (dept filtering, abstract scoring) and web scraping (university discovery). Stateless, no conversation memory. Configured with isolated context to prevent codebase injection. |
+| **SDK Mode 2** | `ClaudeSDKClient()` | SDK built-in | Multi-turn conversations with memory | NOT CURRENTLY USED: For complex iterative workflows. May be added in future phases. |
 | **Built-in Web Fetch** | WebFetch | built-in | Web page scraping | Primary web scraping; handles static HTML |
 | **Built-in Web Search** | WebSearch | built-in | Web search | Augments discovery with targeted searches |
 | **Browser Automation** | Playwright | 1.40.0 | Advanced web scraping | Required for JS-heavy sites, auth pages |
@@ -49,6 +50,13 @@ This section defines the **DEFINITIVE technology selections** for the Lab Finder
 | **Dependency Lock** | pip-tools | 7.3.0 | Requirements pinning | Generates requirements.txt from requirements.in; reproducible installs |
 
 ## Key Technology Decisions
+
+**Claude Agent SDK `ClaudeSDKClient` with Isolated Context**
+- Rationale: All Lab Finder operations are stateless one-off tasks; no conversation memory needed
+- `ClaudeSDKClient` configured with `allowed_tools=[]`, `system_prompt`, and `setting_sources=None` for proper context isolation
+- Standalone `query()` function found to inject unwanted codebase context (git status, file system) causing analysis failures
+- Solution verified: `ClaudeSDKClient` class with proper configuration prevents context pollution
+- Cost: Still FREE; no paid Anthropic API used anywhere in codebase
 
 **Python 3.11.7** (not 3.12+)
 - Rationale: Balance of modern features and ecosystem stability; Claude Agent SDK compatibility confirmed
@@ -83,6 +91,8 @@ This section defines the **DEFINITIVE technology selections** for the Lab Finder
 ---
 
 **CRITICAL NOTES:**
+
+⚠️ **Claude Agent SDK Implementation:** Lab Finder uses `ClaudeSDKClient` class (Mode 1 - stateless) with isolated context configuration for ALL operations. Key config: `allowed_tools=[]`, `system_prompt` override, `setting_sources=None` to prevent codebase context injection. Do NOT use paid Anthropic API `messages.create()` or standalone `query()` function. All SDK modes are FREE.
 
 ⚠️ **Claude Agent SDK Version:** Listed as "latest" - version will be determined by official SDK release at implementation time. Pin specific version in requirements.txt after initial installation.
 

@@ -33,6 +33,7 @@ These models represent the core domain entities flowing through the Lab Finder p
 - `division`: Optional[str] - Parent division
 - `url`: str - Department homepage URL
 - `hierarchy_level`: int - Depth in organizational tree (0=school, 1=division, 2=department)
+- `data_quality_flags`: list[str] - Quality issues (e.g., "missing_url", "missing_school", "ambiguous_hierarchy", "partial_metadata", "inference_based", "manual_entry", "scraping_failed")
 - `is_relevant`: bool - Result of relevance filtering (FR9)
 - `relevance_reasoning`: str - LLM explanation for filter decision
 

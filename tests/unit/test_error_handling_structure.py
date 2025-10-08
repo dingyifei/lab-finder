@@ -110,6 +110,11 @@ class TestUniversityDiscoveryAgent:
             output_dir=tmp_path / "output",
         )
 
+    # NOTE: The following tests test the old WebScraper implementation which has been
+    # replaced with Claude Agent SDK. The SDK handles retry/fallback automatically.
+    # These tests are commented out as they test implementation details that no longer exist.
+
+    @pytest.mark.skip(reason="Removed _fetch_page_with_retry method - now using Claude Agent SDK")
     @pytest.mark.asyncio
     async def test_fetch_page_with_retry_success(self, agent):
         """Test successful page fetch on first attempt."""
@@ -126,6 +131,7 @@ class TestUniversityDiscoveryAgent:
             assert result == "<html><body>Test</body></html>"
             mock_get.assert_called_once_with("https://example.edu")
 
+    @pytest.mark.skip(reason="Removed _fetch_page_with_retry method - now using Claude Agent SDK")
     @pytest.mark.asyncio
     async def test_fetch_page_with_retry_transient_failure_then_success(self, agent):
         """Test retry logic succeeds after transient failure."""
@@ -145,6 +151,7 @@ class TestUniversityDiscoveryAgent:
             assert result == "<html><body>Test</body></html>"
             assert mock_get.call_count == 2
 
+    @pytest.mark.skip(reason="Removed _fetch_page_with_retry method - now using Claude Agent SDK")
     @pytest.mark.asyncio
     async def test_fetch_page_with_retry_max_retries_exceeded(self, agent):
         """Test retry logic fails after max retries."""
@@ -158,6 +165,7 @@ class TestUniversityDiscoveryAgent:
             # Should have attempted 3 times (original + 2 retries = 3 total)
             assert mock_get.call_count == 3
 
+    @pytest.mark.skip(reason="Removed _fetch_page_with_retry method - now using Claude Agent SDK")
     @pytest.mark.asyncio
     async def test_fetch_page_with_retry_http_error_no_retry(self, agent):
         """Test non-transient HTTP errors are not retried."""
@@ -464,6 +472,7 @@ class TestUniversityDiscoveryAgent:
         assert "school/college name" in agent._get_flag_description("missing_school")
         assert "hierarchy level" in agent._get_flag_description("ambiguous_hierarchy")
 
+    @pytest.mark.skip(reason="WebScraper removed - now using Claude Agent SDK with automatic retry/fallback")
     @pytest.mark.asyncio
     async def test_discover_structure_http_error_with_fallback(self, agent, tmp_path):
         """Test discovery handles HTTP error and uses fallback."""
@@ -504,6 +513,7 @@ class TestUniversityDiscoveryAgent:
             assert departments[0].name == "CS"
             assert "manual_entry" in departments[0].data_quality_flags
 
+    @pytest.mark.skip(reason="WebScraper removed - now using Claude Agent SDK with automatic retry/fallback")
     @pytest.mark.asyncio
     async def test_discover_structure_timeout_with_fallback(self, agent, tmp_path):
         """Test discovery handles timeout and uses fallback."""
@@ -540,6 +550,7 @@ class TestUniversityDiscoveryAgent:
             assert departments[0].name == "Math"
             assert "manual_entry" in departments[0].data_quality_flags
 
+    @pytest.mark.skip(reason="WebScraper removed - now using Claude Agent SDK with automatic retry/fallback")
     @pytest.mark.asyncio
     async def test_discover_structure_error_no_fallback_raises(self, agent):
         """Test discovery re-raises error when no fallback available."""

@@ -69,3 +69,12 @@ dmypy.json
 # Ruff
 .ruff_cache/
 nul
+
+# Test Data (ignore user's actual files, keep examples)
+test_data/resume.pdf
+test_data/*.pdf
+!test_data/*.example.pdf
+
+# Debug and temporary files
+output_debug.txt
+*_debug.txt

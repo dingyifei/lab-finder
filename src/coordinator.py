@@ -221,7 +221,7 @@ class CLICoordinator:
                 batch_desc=f"Processing departments {batch_start_idx + 1}-{batch_end_idx} of {len(departments)}",
             )
 
-            # Process batch (placeholder - actual agent spawning will be implemented in Epic 2)
+            # Process batch (placeholder - actual parallel async processing will be implemented in Epic 2)
             batch_results = self._process_department_batch(batch_departments, batch_id)
 
             # Save checkpoint after batch completion
@@ -261,7 +261,7 @@ class CLICoordinator:
         Process a single batch of departments.
 
         This is a placeholder method that will be implemented with actual
-        agent spawning logic in Epic 2. Currently returns the batch as-is
+        parallel async processing logic in Epic 2. Currently returns the batch as-is
         for testing purposes.
 
         Args:
@@ -271,7 +271,9 @@ class CLICoordinator:
         Returns:
             List of processed Department objects
 
-        TODO: Implement actual sub-agent spawning using Claude Agent SDK
+        TODO: Implement parallel async processing using asyncio.gather() with Semaphore
+        TODO: Reference Story 3.1 v0.5 for implementation pattern (lines 406-471)
+        TODO: Reference docs/architecture/agent-definitions.md (lines 50-75)
         """
         self.logger.debug(
             f"Processing batch {batch_id}",
@@ -280,6 +282,7 @@ class CLICoordinator:
         )
 
         # Placeholder: Return batch as-is
-        # TODO: Spawn sub-agents for parallel processing
-        # TODO: Aggregate results from sub-agents
+        # TODO: Create async tasks for each department using asyncio.gather()
+        # TODO: Apply Semaphore for concurrency control
+        # TODO: Aggregate results from parallel tasks
         return batch

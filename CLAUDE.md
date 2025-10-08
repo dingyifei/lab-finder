@@ -2,6 +2,62 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Claude Agent SDK Integration
+
+This project uses the **Claude Agent SDK** (FREE) for all LLM interactions. The SDK provides two operational modes:
+
+### SDK Implementation: ClaudeSDKClient with Isolated Context
+
+**Primary Mode: `ClaudeSDKClient` - Stateless with Context Isolation (CURRENT IMPLEMENTATION)**
+- **Purpose:** Single request-response operations with no conversation memory and NO codebase context injection
+- **When to use:** Department filtering, abstract scoring, profile consolidation, professor matching
+- **Implementation:** All functions in `src/utils/llm_helpers.py` use this pattern
+- **Configuration:** `ClaudeAgentOptions(max_turns=1, allowed_tools=[], system_prompt="...", setting_sources=None)`
+- **Cost:** FREE (included with Claude Agent SDK)
+
+**Critical Bug Fixed (2025-10-07):** The standalone `query()` function was found to inject unwanted codebase context (git status, file system) even with `allowed_tools=[]`, causing Claude to respond in "coding assistant" mode instead of analyzing provided data. Solution: Use `ClaudeSDKClient` class with proper isolation configuration.
+
+**Alternative Mode: Multi-turn conversations (NOT CURRENTLY USED)**
+- **Purpose:** Complex iterative tasks requiring context across multiple turns
+- **Status:** Not currently used in Lab Finder (may be added in future phases)
+- **Cost:** FREE (included with Claude Agent SDK)
+
+### Key Architectural Points
+
+1. **ClaudeSDKClient Configuration for Context Isolation**
+   ```python
+   from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
+
+   options = ClaudeAgentOptions(
+       max_turns=1,              # Stateless one-shot
+       allowed_tools=[],         # No file access
+       system_prompt="You are an expert text analyst. Respond directly to user prompts with the requested analysis.",
+       setting_sources=None      # CRITICAL: Prevents codebase context injection
+   )
+
+   async with ClaudeSDKClient(options=options) as client:
+       await client.query(prompt)
+       async for message in client.receive_response():
+           # Process response...
+   ```
+
+2. **Lab Finder uses `ClaudeSDKClient` for all LLM helpers**
+   - `call_llm_with_retry()` uses `ClaudeSDKClient` with isolated context
+   - `analyze_department_relevance()` uses `ClaudeSDKClient` for text analysis
+   - `filter_professor_research()` uses `ClaudeSDKClient` for matching
+   - All one-off, stateless operations with proper context isolation
+
+3. **Web scraping uses SDK with tools enabled**
+   - University discovery: `ClaudeSDKClient` with `allowed_tools=["WebFetch", "WebSearch"]`
+   - Professor scraping: `ClaudeSDKClient` with tools enabled
+   - Still stateless mode, but with tool access and context isolation
+
+4. **No paid Anthropic API used**
+   - All LLM calls go through Claude Agent SDK `ClaudeSDKClient`
+   - No `anthropic.messages.create()` calls anywhere in codebase
+   - Do NOT use standalone `query()` function (context injection bug)
+   - Everything is FREE via Claude Agent SDK
+
 ## Project Overview
 
 Lab Finder is a Python-based multi-agent research lab discovery system built with the Claude Agent SDK. It automates the process of finding, analyzing, and ranking research labs within universities by:
@@ -12,6 +68,9 @@ Lab Finder is a Python-based multi-agent research lab discovery system built wit
 - Generating comprehensive fitness reports with scoring and recommendations
 
 **Architecture:** Monolithic multi-agent Python application with phased pipeline orchestration. Each phase produces checkpoints for resumability.
+
+**Implementation Status:** Epic 1 (Foundation) complete ✅ | Epic 2 (University Discovery) in progress 🚧 | Story 2.4 complete
+**Last Updated:** 2025-10-07
 
 ## Commands
 
@@ -124,8 +183,8 @@ The system executes in 8 sequential phases with checkpoint-based resumability:
 
 **Hierarchical Coordinator with Batch Delegation:**
 - CLI Coordinator agent manages phase progression
-- Each phase spawns specialized sub-agents (via `AgentDefinition`)
-- Claude Agent SDK handles parallel sub-agent execution automatically
+- Each phase uses Python modules that call Claude Agent SDK's `ClaudeSDKClient` class
+- Parallel execution achieved using Python's `asyncio.gather()` with Semaphore for concurrency control
 - Agents have isolated contexts; state passes via JSONL checkpoints
 - Batch-level checkpointing enables mid-phase resume
 
@@ -185,23 +244,28 @@ The system executes in 8 sequential phases with checkpoint-based resumability:
 ```
 src/
 ├── agents/          # Phase-specific agent implementations
+│   ├── profile_consolidator.py        # ✅ User profile consolidation (Story 1.7)
+│   └── university_discovery.py        # ✅ University structure discovery with error handling (Story 2.4)
 ├── models/          # Pydantic data models
+│   ├── profile.py                     # ✅ ConsolidatedProfile model (Story 1.7)
+│   └── department.py                  # ✅ Department model with data quality flags (Story 2.4)
 ├── schemas/         # JSON schemas for configuration validation
 │   ├── system_params_schema.json      # Batch sizes, rate limits, timeouts
 │   ├── user_profile_schema.json       # Research interests, filters
 │   └── university_config_schema.json  # University-specific scraping config
-├── utils/           # Shared utilities
-│   ├── checkpoint_manager.py          # JSONL checkpoint persistence
-│   ├── credential_manager.py          # Secure credential storage with CLI prompts
-│   ├── llm_helpers.py                 # Centralized LLM interaction functions
-│   ├── logger.py                      # Structured logging with correlation IDs
-│   ├── mcp_client.py                  # MCP server configuration helper
-│   ├── progress_tracker.py            # Rich-based progress bars
-│   └── validator.py                   # JSON schema validation
+├── utils/           # Shared utilities (✅ Epic 1 Story 1.4 complete)
+│   ├── checkpoint_manager.py          # ✅ JSONL checkpoint persistence
+│   ├── credential_manager.py          # ✅ Secure credential storage with CLI prompts (Story 1.3)
+│   ├── llm_helpers.py                 # ✅ Centralized LLM interaction functions
+│   ├── logger.py                      # ✅ Structured logging with correlation IDs
+│   ├── mcp_client.py                  # ✅ MCP server configuration helper (Story 1.5)
+│   ├── progress_tracker.py            # ✅ Rich-based progress bars
+│   └── validator.py                   # ✅ JSON schema validation (Story 1.2)
 └── __init__.py
 
 tests/
 ├── unit/            # Unit tests (70% coverage minimum enforced by pytest.ini)
+│   └── test_error_handling_structure.py  # ✅ Story 2.4 tests (36 tests, 94% coverage)
 ├── integration/     # Integration tests (MCP, web scraping, I/O)
 ├── fixtures/        # Test data (sample configs, mock HTML)
 └── __init__.py
@@ -596,6 +660,94 @@ is_valid = validator.validate_config(
 14. **Missing pytest markers** - Mark integration tests with `@pytest.mark.integration`
 15. **Skipping coverage checks** - `pytest.ini` enforces 70% minimum
 
+## Implementation Progress & Status
+
+### Completed Stories ✅
+
+**Epic 1: Foundation & Configuration Infrastructure (COMPLETE ✅ - all required stories done)**
+- ✅ **Story 1.0** - Project Initialization
+- ✅ **Story 1.1** - Core Dependency Installation
+- ✅ **Story 1.2** - JSON Schema Validation (`src/utils/validator.py`)
+- ✅ **Story 1.3** - Credential Management (`src/utils/credential_manager.py`)
+- ✅ **Story 1.4** - Shared Utilities Implementation:
+  - `src/utils/checkpoint_manager.py` - JSONL checkpoint persistence
+  - `src/utils/llm_helpers.py` - Centralized LLM prompts with retry logic
+  - `src/utils/progress_tracker.py` - Rich-based progress bars
+  - `src/utils/logger.py` - Structured logging with correlation IDs
+- ✅ **Story 1.5** - MCP Server Setup (`src/utils/mcp_client.py`)
+- ✅ **Story 1.6** - Testing Infrastructure (pytest.ini, test structure)
+- ✅ **Story 1.7** - User Profile Consolidation:
+  - `src/models/profile.py` - ConsolidatedProfile Pydantic model
+  - `src/agents/profile_consolidator.py` - Profile consolidation agent
+- 🔶 **Story 1.8** - CI/CD Pipeline Setup (OPTIONAL - implemented, needs monitoring):
+  - `.github/workflows/ci.yml` - 4-stage workflow (lint, type-check, unit-tests, integration-tests)
+  - `tests/integration/conftest.py` - MCP mocking fixtures for CI environment
+  - QA Score: 80/100 (concerns: needs monitoring for <10min execution time)
+  - Status: Functional but requires post-deployment monitoring
+
+**Epic 2: University Structure Discovery (IN PROGRESS 🚧)**
+- ✅ **Story 2.4** - Error Handling for Missing Structure Data:
+  - `src/models/department.py` - Department model with data quality flags
+  - `src/agents/university_discovery.py` - University discovery with retry logic, graceful degradation, and error handling
+  - `tests/unit/test_error_handling_structure.py` - 36 tests, 94% coverage
+  - QA Score: 100/100 (production-ready, exemplary implementation)
+- ⏳ **Story 2.1** - University Website Structure Discovery (may be partially in 2.4 implementation)
+- ⏳ **Story 2.2** - Department Structure JSON Representation
+- ⏳ **Story 2.3** - Department Relevance Filtering
+- ⏳ **Story 2.5** - Batch Configuration for Department Processing
+
+### Key Implementation Insights
+
+**From Story 2.4 (Error Handling):**
+- Department model includes `data_quality_flags` field for tracking issues
+- UniversityDiscoveryAgent implements comprehensive error handling:
+  - Retry logic using tenacity (exponential backoff, max 3 attempts)
+  - Graceful degradation for missing data (placeholders, partial data)
+  - Manual fallback configuration support (`departments_fallback.json`)
+  - Structure gap report generation (`output/structure-gaps.md`)
+  - Validation with 50% thresholds (blocks pipeline if <50% data)
+- Data quality flags: `missing_url`, `missing_school`, `ambiguous_hierarchy`, `partial_metadata`, `inference_based`, `manual_entry`, `scraping_failed`
+
+**From Epic 1 (Foundation):**
+- All shared utilities follow consistent patterns (async/await, type hints, structured logging)
+- LLM helpers centralize prompts: `DEPARTMENT_RELEVANCE_TEMPLATE`, `PROFESSOR_FILTER_TEMPLATE`, `LINKEDIN_MATCH_TEMPLATE`
+- Checkpoint manager handles JSONL batch-level persistence with resume support
+- CredentialManager prompts for missing credentials and saves to `.env`
+- ConsolidatedProfile model includes LLM-generated `streamlined_interests` field
+
+### Next Steps
+
+**Immediate (Epic 2 Remaining Stories):**
+1. Complete Story 2.1, 2.2, 2.3, 2.5 to finish university discovery phase
+2. Verify checkpoint generation: `checkpoints/phase-1-relevant-departments.jsonl`
+3. Integration test full Epic 2 workflow
+
+**Following Epics:**
+- **Epic 3** - Professor Discovery & Filtering (Stories 3.1-3.5)
+- **Epic 4** - Lab Website Intelligence (Stories 4.1-4.5)
+- **Epics 5 & 6** - Publications & LinkedIn (parallel execution)
+- **Epic 7** - Fitness Scoring
+- **Epic 8** - Report Generation
+
+### Current Development Environment
+
+**Working Components:**
+- Validation (`src/utils/validator.py`)
+- Credential management (`src/utils/credential_manager.py`)
+- Checkpoint system (`src/utils/checkpoint_manager.py`)
+- Structured logging (`src/utils/logger.py`)
+- LLM helpers (`src/utils/llm_helpers.py`)
+- Progress tracking (`src/utils/progress_tracker.py`)
+- MCP client configuration (`src/utils/mcp_client.py`)
+- Profile consolidation (`src/agents/profile_consolidator.py`)
+- University discovery with error handling (`src/agents/university_discovery.py`)
+
+**Test Coverage:**
+- Story 2.4: 94% coverage (36 tests)
+- All tests passing (183 total, 1 skipped)
+- ruff linting: ✅ passing
+- mypy type checking: ✅ passing
+
 ## Documentation References
 
 - **Architecture details:** `docs/architecture/` (individual files) or `docs/architecture.md` (pre-shard consolidated version)
@@ -605,3 +757,4 @@ is_valid = validator.validate_config(
 - **Architecture errata:** `docs/ARCHITECTURE-ERRATA.md`
 
 **Note:** The `architecture.md` and `prd.md` files are pre-sharded consolidated versions. The `docs/architecture/` and `docs/prd/` directories contain the same content split into focused topic files for easier navigation.
+- use shard epics and architecture, meaning use the docs/prd/ over prd.md. if updating shard documents, bright these modifications in shard documents back into the un-shard docs

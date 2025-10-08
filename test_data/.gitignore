@@ -1,0 +1,5 @@
+# Ignore user's actual resume
+resume.pdf
+
+# Keep the example template
+!resume.example.pdf

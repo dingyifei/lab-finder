@@ -1,6 +1,8 @@
 # Components
 
-This section defines the major logical components/services and their responsibilities. Each component maps to one or more Python modules and may spawn Claude Agent SDK sub-agents for parallel processing.
+**IMPORTANT:** Claude Agent SDK does NOT have `AgentDefinition` or sub-agent spawning. All components use the SDK's `query()` function with appropriate prompts.
+
+This section defines the major logical components/services and their responsibilities. Each component is a Python module that uses Claude Agent SDK's `query()` function. Parallel execution is achieved using Python's `asyncio.gather()`, NOT SDK-provided mechanisms.
 
 ## CLI Coordinator
 
@@ -46,13 +48,13 @@ This section defines the major logical components/services and their responsibil
 - pydantic 2.5.3 for config models
 - Claude Agent SDK for LLM-based summarization
 
-**Agent Pattern:** AgentDefinition for configuration validation
+**Agent Pattern:** Python module using Claude Agent SDK query() function
 
-- `config_validator` agent: Validates JSON configs against schemas
-- LLM-based resume summarization and research interest streamlining
+- Validates JSON configs against schemas
+- LLM-based resume summarization and research interest streamlining via SDK query()
 - Synchronous execution (Phase 0 prerequisite for all other phases)
 - Checkpoint saved to phase-0-validation.json
-- See Agent Definitions section for complete implementation
+- See docs/architecture/agent-definitions.md for implementation patterns
 
 ---
 
@@ -75,12 +77,12 @@ This section defines the major logical components/services and their responsibil
 - Playwright 1.40.0 as fallback
 - structlog with phase context
 
-**Agent Pattern:** AgentDefinition-based discovery with automatic SDK parallelization
+**Agent Pattern:** Python module using Claude Agent SDK query() function with application-level parallel processing
 
-- SDK invokes `university_discovery` agent when coordinator requests department structure
-- Parallel processing handled by SDK for large universities
+- Coordinator calls `discover_structure()` function to initiate university discovery
+- Parallel processing of departments/schools implemented using asyncio.gather() with Semaphore (application-level)
 - Returns filtered department structure with checkpoint saved to phase-1-departments.jsonl
-- See Agent Definitions section for complete implementation
+- See Story 2.1 (refactored) and Story 3.1 v0.5 for parallel execution implementation patterns
 
 ---
 
@@ -102,13 +104,13 @@ This section defines the major logical components/services and their responsibil
 - aiolimiter for rate limiting per university domain
 - tenacity for retry logic on scraping failures
 
-**Agent Pattern:** Dual AgentDefinition pattern - discovery + filtering
+**Agent Pattern:** Python module using Claude Agent SDK query() function with parallel async processing
 
-- `professor_discovery` agent: Scrapes professor directories in parallel per department
-- `professor_filter` agent: LLM-based filtering with confidence scoring
-- SDK coordinates sequential execution: discovery → filtering
+- Discovery: Scrapes professor directories in parallel per department using asyncio.gather()
+- Filtering: LLM-based filtering with confidence scoring via SDK query()
+- Sequential execution: discovery → filtering
 - Batch checkpoints enable mid-phase resume
-- See Agent Definitions section for complete implementation
+- See Story 3.1 v0.5 and docs/architecture/agent-definitions.md for implementation patterns
 
 ---
 
@@ -131,13 +133,13 @@ This section defines the major logical components/services and their responsibil
 - Claude Agent SDK for website scraping and contact extraction
 - tenacity for retry logic
 
-**Agent Pattern:** AgentDefinition-based batch scraping with Archive.org integration
+**Agent Pattern:** Python module using Claude Agent SDK query() function with parallel async batch scraping
 
-- `lab_scraper` agent: WebFetch primary, Playwright fallback for JS-heavy sites
-- Parallel execution across labs (configurable batch size)
+- WebFetch primary via SDK query(), Playwright fallback for JS-heavy sites
+- Parallel execution across labs using asyncio.gather() (configurable batch size)
 - Archive.org API calls via httpx for snapshot history
 - Checkpoints saved to phase-3-labs-batch-N.jsonl
-- See Agent Definitions section for complete implementation
+- See Story 3.1 v0.5 for parallel execution patterns
 
 ---
 
@@ -161,14 +163,14 @@ This section defines the major logical components/services and their responsibil
 - pandas 2.1.4 for SJR CSV loading
 - Claude Agent SDK for abstract analysis
 
-**Agent Pattern:** AgentDefinition with MCP integration for parallel retrieval
+**Agent Pattern:** Python module using Claude Agent SDK query() function with MCP integration for parallel retrieval
 
-- `publication_agent` agent: Queries paper-search-mcp MCP server per professor
+- Queries paper-search-mcp MCP server per professor via SDK
 - MCP tool: `mcp__papers__search_papers` with author + affiliation query
-- LLM analyzes abstracts for relevance scoring
+- LLM analyzes abstracts for relevance scoring via SDK query()
 - SJR journal scores loaded from CSV at startup
-- Parallel execution across professors (SDK-managed)
-- See Agent Definitions section for complete implementation
+- Parallel execution across professors using asyncio.gather()
+- See Story 5.1 and docs/architecture/agent-definitions.md for implementation patterns
 
 ---
 
@@ -188,14 +190,14 @@ This section defines the major logical components/services and their responsibil
 - Claude Agent SDK for pattern analysis
 - python-dateutil for timeline analysis
 
-**Agent Pattern:** AgentDefinition for co-authorship pattern analysis
+**Agent Pattern:** Python module using Claude Agent SDK query() function for co-authorship pattern analysis
 
-- `member_inference` agent: Analyzes frequent co-authors from publication data
-- LLM validates university affiliation for inferred members
+- Analyzes frequent co-authors from publication data
+- LLM validates university affiliation for inferred members via SDK query()
 - Sequential processing (lightweight, no parallelization needed)
 - Marks inferred members with is_inferred=true and confidence score
 - Flags in data_quality: "members_inferred_from_coauthorship"
-- See Agent Definitions section for complete implementation
+- See docs/architecture/agent-definitions.md for implementation patterns
 
 ---
 
@@ -217,15 +219,15 @@ This section defines the major logical components/services and their responsibil
 - Claude Agent SDK for LLM-based matching
 - python-dateutil 2.8.2 for date calculations
 
-**Agent Pattern:** AgentDefinition with parallel MCP-based LinkedIn matching
+**Agent Pattern:** Python module using Claude Agent SDK query() function with parallel MCP-based LinkedIn matching
 
-- `linkedin_matcher` agent: Uses mcp-linkedin MCP server for profile search/retrieval
+- Uses mcp-linkedin MCP server for profile search/retrieval via SDK
 - MCP tools: `mcp__linkedin__search_people`, `mcp__linkedin__get_profile`
-- LLM matches profiles considering name variants and affiliations
+- LLM matches profiles considering name variants and affiliations via SDK query()
 - MCP server handles authentication and rate limiting (no application queue needed)
-- Parallel execution safe - multiple agents can call MCP concurrently
+- Parallel execution using asyncio.gather() for processing multiple lab members concurrently
 - Calculates expected graduation dates from LinkedIn education data
-- See Agent Definitions section for complete implementation
+- See Story 6.1 and docs/architecture/agent-definitions.md for implementation patterns
 
 ---
 
@@ -246,14 +248,14 @@ This section defines the major logical components/services and their responsibil
 - Claude Agent SDK for collaboration assessment
 - Pure Python for author position calculations
 
-**Agent Pattern:** AgentDefinition for authorship pattern analysis
+**Agent Pattern:** Python module using Claude Agent SDK query() function for authorship pattern analysis
 
-- `authorship_analyzer` agent: Calculates PI author position distribution
-- LLM assesses core vs. collaborator role based on field norms
+- Calculates PI author position distribution
+- LLM assesses core vs. collaborator role based on field norms via SDK query()
 - Identifies external collaborators from co-author affiliations
 - Sequential processing (in-memory analysis, no heavy I/O)
 - Checkpoint saved to phase-5-authorship.jsonl
-- See Agent Definitions section for complete implementation
+- See docs/architecture/agent-definitions.md for implementation patterns
 
 ---
 
@@ -274,14 +276,14 @@ This section defines the major logical components/services and their responsibil
 - Claude Agent SDK for LLM-driven scoring
 - Pure Python for score normalization and ranking
 
-**Agent Pattern:** AgentDefinition for LLM-driven fitness scoring
+**Agent Pattern:** Python module using Claude Agent SDK query() function for LLM-driven fitness scoring
 
-- `fitness_scorer` agent: LLM identifies scoring criteria dynamically based on user profile
+- LLM identifies scoring criteria dynamically based on user profile via SDK query()
 - Scores each lab across multiple criteria with weighted calculation
-- Parallel batch scoring (configurable batch size, e.g., 10 labs per batch)
+- Parallel batch scoring using asyncio.gather() (configurable batch size, e.g., 10 labs per batch)
 - Provides rationale and priority recommendations (1=top, 2=strong, 3=consider)
 - Checkpoint saved to phase-5-scores.jsonl with ranked results
-- See Agent Definitions section for complete implementation
+- See docs/architecture/agent-definitions.md for implementation patterns
 
 ---
 
@@ -304,14 +306,14 @@ This section defines the major logical components/services and their responsibil
 - jinja2 (add to tech stack if needed) or f-strings for templating
 - rich 13.7.0 for markdown preview
 
-**Agent Pattern:** AgentDefinition for markdown report generation
+**Agent Pattern:** Python module for markdown report generation
 
-- `report_generator` agent: Loads all checkpoint data and generates reports
+- Loads all checkpoint data and generates reports
 - Creates Overview.md with ranked labs and comparison matrix
 - Generates individual lab reports with data quality flags (⚠️ markers)
 - Single-threaded execution (fast I/O operations, no parallelization needed)
 - All reports saved to output/ directory
-- See Agent Definitions section for complete implementation
+- See docs/architecture/agent-definitions.md for implementation patterns
 
 ---
 

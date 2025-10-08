@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["university", "discovery_date", "schools"],
+  "properties": {
+    "university": {"type": "string"},
+    "discovery_date": {"type": "string", "format": "date"},
+    "total_schools": {"type": "integer"},
+    "total_divisions": {"type": "integer"},
+    "total_departments": {"type": "integer"},
+    "schools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "url"],
+        "properties": {
+          "name": {"type": "string"},
+          "url": {"type": "string", "format": "uri"},
+          "divisions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "departments"],
+              "properties": {
+                "name": {"type": "string"},
+                "url": {"type": "string", "format": "uri"},
+                "departments": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["id", "name", "url", "hierarchy_level"],
+                    "properties": {
+                      "id": {"type": "string"},
+                      "name": {"type": "string"},
+                      "url": {"type": "string", "format": "uri"},
+                      "hierarchy_level": {"type": "integer", "minimum": 0}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "departments": {
+            "type": "array",
+            "description": "Direct departments if no divisions",
+            "items": {"$ref": "#/properties/schools/items/properties/divisions/items/properties/departments/items"}
+          }
+        }
+      }
+    }
+  }
+}

@@ -4,7 +4,7 @@
 
 Lab Finder is a **monolithic multi-agent Python application** orchestrated by the Claude Agent SDK. The system follows a **phased pipeline architecture** with checkpoint-based resumability, where each phase produces intermediate artifacts for the next.
 
-The architecture centers on **hierarchical agent delegation**: a coordinator agent manages five sequential phases, delegating specialized sub-agents for parallel data collection (department discovery, professor analysis, publication retrieval, LinkedIn matching). Resource contention is managed through **queue-based coordination** for shared resources like the LinkedIn browser session.
+The architecture centers on **phased pipeline orchestration**: a coordinator manages five sequential phases, with each phase using specialized AgentDefinitions and parallel async processing (via asyncio.gather()) for data collection (department discovery, professor analysis, publication retrieval, LinkedIn matching). The mcp-linkedin MCP server handles LinkedIn session management internally.
 
 Core technology choices include Python 3.11+ for async/await patterns, Playwright for browser automation, and MCP servers (paper-search-mcp) for publication data. The system emphasizes **graceful degradation** - missing data is flagged but doesn't block pipeline progression.
 
@@ -17,7 +17,7 @@ This architecture directly supports the PRD goals of systematic lab discovery wi
 **1. Main Architecture Pattern:**
 - **Monolithic Application** (not microservices) - single Python process with multi-agent orchestration
 - **Phased Pipeline** - 7 distinct phases (6 sequential + 1 parallel) with checkpoint-based resumability
-- **Agent Delegation Model** - coordinator agent spawns specialized sub-agents per phase
+- **Phase Component Model** - coordinator orchestrates specialized phase components; parallel operations within phases use asyncio.gather()
 - **Parallel Execution Optimization** - Phase 4 (Lab Websites) and Phase 5A (PI Publications) execute concurrently for 15-20% timeline reduction
 
 **2. Repository Structure:**
@@ -26,8 +26,8 @@ This architecture directly supports the PRD goals of systematic lab discovery wi
 
 **3. Service Architecture:**
 - **Single-process multi-agent system** (per PRD: "Monolithic Application with Multi-Agent Orchestration")
-- Sub-agents execute in parallel within batch limits
-- Shared resources (LinkedIn session) accessed via queue
+- Parallel operations within phases use asyncio.gather() with Semaphore for concurrency control
+- LinkedIn session managed by mcp-linkedin MCP server (no application queue needed)
 
 **4. Primary Interaction Flow:**
 ```
@@ -170,9 +170,10 @@ graph TB
 
 **SDK Implementation:**
 - Use `AgentDefinition` to create specialized agents per phase
-- SDK handles parallel subagent execution automatically
-- Coordinator manages phase progression via `ClaudeAgentOptions`
+- Application implements parallel execution using asyncio.gather() with Semaphore concurrency control
+- Coordinator manages phase progression and orchestrates parallel operations
 - Agents have isolated contexts (checkpoint-based state passing required)
+- See Story 3.1 v0.5 for reference implementation of parallel execution patterns
 
 **Options Considered:**
 - **Option A:** Flat agent pool with work queue (all agents equal, pull tasks from queue)
