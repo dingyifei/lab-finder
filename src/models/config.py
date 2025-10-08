@@ -6,7 +6,7 @@ Pydantic models for system configuration validation.
 
 import json
 from pathlib import Path
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 class BatchConfig(BaseModel):
@@ -55,6 +55,39 @@ class ConfidenceThresholds(BaseModel):
     linkedin_match: float = Field(default=75.0, ge=0.0, le=100.0)
 
 
+class FilteringConfig(BaseModel):
+    """Filtering configuration for confidence-based decisions.
+
+    Story 3.3: Task 1
+    """
+
+    low_confidence_threshold: int = Field(default=70, ge=0, le=100)
+    high_confidence_threshold: int = Field(default=90, ge=0, le=100)
+    borderline_review_enabled: bool = Field(default=True)
+
+    @field_validator("high_confidence_threshold")
+    @classmethod
+    def validate_threshold_ordering(cls, v: int, info: ValidationInfo) -> int:
+        """Validate that high > low and both are in valid range (0-100).
+
+        Validation: 0 < low < high <= 100
+        """
+        # Get low_confidence_threshold from values dict
+        low = info.data.get("low_confidence_threshold", 70)
+
+        if low <= 0:
+            raise ValueError("low_confidence_threshold must be greater than 0")
+        if v <= low:
+            raise ValueError(
+                f"high_confidence_threshold ({v}) must be greater than "
+                f"low_confidence_threshold ({low})"
+            )
+        if v > 100:
+            raise ValueError("high_confidence_threshold must be <= 100")
+
+        return v
+
+
 class SystemParams(BaseModel):
     """System parameters configuration model."""
 
@@ -64,6 +97,7 @@ class SystemParams(BaseModel):
     confidence_thresholds: ConfidenceThresholds = Field(
         default_factory=ConfidenceThresholds
     )
+    filtering_config: FilteringConfig = Field(default_factory=FilteringConfig)
     publication_years: int = Field(default=3, gt=0)
     log_level: str = Field(default="INFO")
 

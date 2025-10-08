@@ -12,7 +12,10 @@ PROFESSOR_DATA_QUALITY_FLAGS = {
     "missing_lab_affiliation",  # Lab name/URL not identified
     "ambiguous_lab",  # Multiple possible lab affiliations unclear
     "llm_filtering_failed",  # LLM call failed, used inclusive default (confidence=0)
-    "low_confidence_filter",  # Confidence below threshold (for Story 3.3 use)
+    "low_confidence_filter",  # Confidence below threshold (Story 3.3)
+    "llm_response_error",  # Malformed LLM response (Story 3.3)
+    "manual_override",  # User manual override (Story 3.3)
+    "confidence_out_of_range",  # Confidence clamped to 0-100 range (Story 3.3)
 }
 
 

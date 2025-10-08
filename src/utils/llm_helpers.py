@@ -124,7 +124,17 @@ PROFESSOR_FILTER_TEMPLATE = """Evaluate how well this professor's research align
 <task>
 Provide:
 1. Confidence score (0-100) indicating research alignment
-2. Brief reasoning explaining the score
+2. Detailed reasoning explaining the score
+3. Key factors listing specific matching elements
+
+Confidence score should reflect:
+- Strength of research overlap (strong/moderate/weak)
+- Number of matching research areas
+- Specificity of match (direct vs. tangential)
+- Certainty in interpretation
+
+Include "key_factors" listing specific matching elements from the professor's research.
+Include "confidence_explanation" explaining why this confidence level was assigned.
 </task>
 
 <scoring_guide>
@@ -136,7 +146,7 @@ Provide:
 </scoring_guide>
 
 Return ONLY valid JSON (no markdown code blocks):
-{{"confidence": 0-100, "reasoning": "brief explanation"}}
+{{"confidence": 0-100, "reasoning": "brief explanation", "key_factors": ["factor1", "factor2", ...], "confidence_explanation": "explanation of confidence level"}}
 """
 
 LINKEDIN_MATCH_TEMPLATE = """Determine if this LinkedIn profile matches the lab member.

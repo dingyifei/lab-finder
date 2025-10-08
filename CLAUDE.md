@@ -298,6 +298,18 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 - Testing: 7 new tests covering parallel execution, semaphore limits, progress tracking, error handling, edge cases
 - Key improvement: Progress tracking in finally block for reliability (QA refactoring)
 
+**Epic 3 (Story 3.3):**
+- Confidence scoring: Robust validation handling 7+ edge cases (floats, strings, booleans, negatives, out-of-range, null, malformed)
+- Threshold configuration: FilteringConfig with Pydantic validation ensures 0 < low < high <= 100
+- Borderline reporting: `generate_borderline_report()` creates actionable review report with override recommendations
+- Statistics: `calculate_confidence_stats()` with quality assessment (warns when >30% low-confidence)
+- Manual overrides: Audit trail with timestamp, original confidence, original decision for transparency
+- Enhanced LLM prompt: Requests `key_factors` and `confidence_explanation` for interpretability
+- Data quality flags: `low_confidence_filter`, `llm_response_error`, `manual_override`, `confidence_out_of_range`
+- Output artifacts: `output/borderline-professors.md`, `output/filter-confidence-stats.json`
+- Testing: 32 comprehensive tests (100% AC coverage), ruff ✅, mypy ✅
+- QA score: 95/100 - exceptional quality, production-ready
+
 **Epic 3 (Story 3.2):**
 - Professor filtering: LLM-based research alignment using `filter_professor_research()` from llm_helpers
 - Decision logic: Confidence >= 70 → include, < 70 → exclude (configurable threshold)
@@ -334,15 +346,15 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 
 ### Next Steps
 
-**Immediate:** Story 3.3 (Confidence Scoring) - Add confidence-based flagging for low-confidence matches
+**Immediate:** Story 3.4 (Filtered Professor Logging) - Add structured logging for filtered professor decisions
 
-**Following:** Story 3.4 (Filtered Professor Logging) → Epic 4 (Lab Intelligence) → Epics 5&6 (parallel) → Epic 7 (Fitness) → Epic 8 (Reports)
+**Following:** Epic 4 (Lab Intelligence) → Epics 5&6 (parallel) → Epic 7 (Fitness) → Epic 8 (Reports)
 
 ### Current Environment
 
-**Working Components:** Validation, credential management, checkpoints, logging, LLM helpers, progress tracking, MCP client, profile consolidation, university discovery, department filtering, professor model, professor discovery, parallel professor discovery, deduplication, rate limiting, professor filtering
+**Working Components:** Validation, credential management, checkpoints, logging, LLM helpers, progress tracking, MCP client, profile consolidation, university discovery, department filtering, professor model, professor discovery, parallel professor discovery, deduplication, rate limiting, professor filtering, confidence scoring
 
-**Test Status:** 294+ tests passing (255 from Epics 1-2 + 24 from Stories 3.1a+3.1b+3.1c + 15 from Story 3.2), ruff ✅, mypy ✅
+**Test Status:** 326+ tests passing (255 from Epics 1-2 + 24 from Stories 3.1a+3.1b+3.1c + 15 from Story 3.2 + 32 from Story 3.3), ruff ✅, mypy ✅
 
 ## Documentation References
 
