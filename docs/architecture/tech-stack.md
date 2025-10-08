@@ -20,34 +20,34 @@ This section defines the **DEFINITIVE technology selections** for the Lab Finder
 | Category | Technology | Version | Purpose | Rationale |
 |----------|-----------|---------|---------|-----------|
 | **Language** | Python | 3.11.7 | Primary development language | Modern async/await, pattern matching, LTS release with performance improvements |
-| **Framework** | Claude Agent SDK | latest | Multi-agent orchestration framework | Core framework per NFR1; provides FREE LLM access via two modes: `query()` (stateless) and `ClaudeSDKClient()` (stateful) |
+| **Framework** | Claude Agent SDK | 0.1.1 | Multi-agent orchestration framework | Core framework per NFR1; provides FREE LLM access via two modes: `query()` (stateless) and `ClaudeSDKClient()` (stateful) |
 | **SDK Mode 1** | `ClaudeSDKClient` | SDK built-in | One-off stateless LLM calls | PRIMARY MODE: Used for all text analysis (dept filtering, abstract scoring) and web scraping (university discovery). Stateless, no conversation memory. Configured with isolated context to prevent codebase injection. |
 | **SDK Mode 2** | `ClaudeSDKClient()` | SDK built-in | Multi-turn conversations with memory | NOT CURRENTLY USED: For complex iterative workflows. May be added in future phases. |
 | **Built-in Web Fetch** | WebFetch | built-in | Web page scraping | Primary web scraping; handles static HTML |
 | **Built-in Web Search** | WebSearch | built-in | Web search | Augments discovery with targeted searches |
-| **Browser Automation** | Playwright | 1.40.0 | Advanced web scraping | Required for JS-heavy sites, auth pages |
-| **MCP Client** | mcp (Model Context Protocol) | 1.0.0 | MCP server communication | Connects to paper-search-mcp and mcp-linkedin servers (NFR6) |
-| **HTTP Client** | httpx | 0.26.0 | Async HTTP requests | Archive.org API, web scraping fallback; native async support |
+| **Browser Automation** | Playwright | 1.55.0 | Advanced web scraping | Required for JS-heavy sites, auth pages |
+| **MCP Client** | mcp (Model Context Protocol) | 1.16.0 | MCP server communication | Connects to paper-search-mcp and mcp-linkedin servers (NFR6) |
+| **HTTP Client** | httpx | 0.28.1 | Async HTTP requests | Archive.org API, web scraping fallback; native async support |
 | **Archive.org Client** | waybackpy | 3.0.6 | Wayback Machine API wrapper | Website history snapshots (FR14); simplifies Archive.org CDX API interaction |
-| **Schema Validation** | jsonschema | 4.21.1 | JSON configuration validation | Validates user configs against schemas (FR1); industry standard |
-| **Configuration** | python-dotenv | 1.0.0 | Environment variable management | Credential loading; separates secrets from code (FR2-FR3) |
-| **Logging** | structlog | 24.1.0 | Structured logging framework | Correlation IDs, agent context, JSON output for multi-agent tracing (NFR17) |
-| **Progress Indicators** | rich | 13.7.0 | CLI progress bars and formatting | User-facing progress tracking (NFR14); markdown preview capabilities |
-| **Testing Framework** | pytest | 7.4.4 | Test runner and framework | Industry standard; excellent async support, fixtures, parametrization |
-| **Test Coverage** | pytest-cov | 4.1.0 | Code coverage reporting | Tracks test coverage metrics |
-| **Async Testing** | pytest-asyncio | 0.23.3 | Async test support | Handles async/await test cases for agent orchestration |
-| **Mocking** | pytest-mock | 3.12.0 | Test mocking and stubbing | Mocks external services (LinkedIn, Archive.org, paper-search-mcp) |
-| **Linting** | ruff | 0.1.11 | Fast Python linter | Replaces flake8, black, isort; extremely fast, comprehensive rules |
-| **Type Checking** | mypy | 1.8.0 | Static type analysis | Enforces type hints; catches type errors before runtime |
-| **Data Validation** | pydantic | 2.5.3 | Runtime data validation | Type-safe configuration models; complements jsonschema |
-| **Date/Time Utilities** | python-dateutil | 2.8.2 | Date parsing and manipulation | PhD graduation timeline calculations (FR21) |
-| **Retry Logic** | tenacity | 8.2.3 | Configurable retry decorator | Web scraping error handling (NFR13); exponential backoff |
-| **Rate Limiting** | aiolimiter | 1.1.0 | Async rate limiter | Per-source rate limiting (NFR11); prevents blocking |
-| **CSV Processing** | pandas | 2.1.4 | Data manipulation for SJR database | Journal reputation data loading (FR17); CSV parsing |
+| **Schema Validation** | jsonschema | 4.25.1 | JSON configuration validation | Validates user configs against schemas (FR1); industry standard |
+| **Configuration** | python-dotenv | 1.1.1 | Environment variable management | Credential loading; separates secrets from code (FR2-FR3) |
+| **Logging** | structlog | 25.4.0 | Structured logging framework | Correlation IDs, agent context, JSON output for multi-agent tracing (NFR17) |
+| **Progress Indicators** | rich | 14.1.0 | CLI progress bars and formatting | User-facing progress tracking (NFR14); markdown preview capabilities |
+| **Testing Framework** | pytest | 8.4.2 | Test runner and framework | Industry standard; excellent async support, fixtures, parametrization |
+| **Test Coverage** | pytest-cov | 7.0.0 | Code coverage reporting | Tracks test coverage metrics |
+| **Async Testing** | pytest-asyncio | 1.2.0 | Async test support | Handles async/await test cases for agent orchestration |
+| **Mocking** | pytest-mock | 3.15.1 | Test mocking and stubbing | Mocks external services (LinkedIn, Archive.org, paper-search-mcp) |
+| **Linting** | ruff | 0.13.3 | Fast Python linter | Replaces flake8, black, isort; extremely fast, comprehensive rules |
+| **Type Checking** | mypy | 1.18.2 | Static type analysis | Enforces type hints; catches type errors before runtime |
+| **Data Validation** | pydantic | 2.11.10 | Runtime data validation | Type-safe configuration models; complements jsonschema |
+| **Date/Time Utilities** | python-dateutil | 2.9.0.post0 | Date parsing and manipulation | PhD graduation timeline calculations (FR21) |
+| **Retry Logic** | tenacity | 9.1.2 | Configurable retry decorator | Web scraping error handling (NFR13); exponential backoff |
+| **Rate Limiting** | aiolimiter | 1.2.1 | Async rate limiter | Per-source rate limiting (NFR11); prevents blocking |
+| **CSV Processing** | pandas | 2.3.3 | Data manipulation for SJR database | Journal reputation data loading (FR17); CSV parsing |
 | **JSONL Handling** | jsonlines | 4.0.0 | JSONL file read/write | Checkpoint file format; streaming support |
 | **Environment** | virtualenv / venv | built-in | Virtual environment isolation | Dependency isolation; reproducible builds |
 | **Package Management** | pip | 23.3+ | Dependency installation | Standard Python package manager |
-| **Dependency Lock** | pip-tools | 7.3.0 | Requirements pinning | Generates requirements.txt from requirements.in; reproducible installs |
+| **Dependency Lock** | pip-tools | 7.5.1 | Requirements pinning | Generates requirements.txt from requirements.in; reproducible installs |
 
 ## Key Technology Decisions
 
@@ -94,9 +94,9 @@ This section defines the **DEFINITIVE technology selections** for the Lab Finder
 
 ⚠️ **Claude Agent SDK Implementation:** Lab Finder uses `ClaudeSDKClient` class (Mode 1 - stateless) with isolated context configuration for ALL operations. Key config: `allowed_tools=[]`, `system_prompt` override, `setting_sources=None` to prevent codebase context injection. Do NOT use paid Anthropic API `messages.create()` or standalone `query()` function. All SDK modes are FREE.
 
-⚠️ **Claude Agent SDK Version:** Listed as "latest" - version will be determined by official SDK release at implementation time. Pin specific version in requirements.txt after initial installation.
+⚠️ **Claude Agent SDK Version:** Pinned to version 0.1.1 as installed in Story 1.1. Do not update without architectural review.
 
-⚠️ **MCP Version:** Listed as "1.0.0" - verify actual version when configuring MCP servers (paper-search-mcp, mcp-linkedin).
+⚠️ **MCP Version:** Pinned to version 1.16.0 as installed in Story 1.1. Verify compatibility when configuring MCP servers (paper-search-mcp, mcp-linkedin).
 
 ⚠️ **MCP Servers Required:**
 - `paper-search-mcp` - Publication retrieval

@@ -69,7 +69,9 @@ class TestPromptTemplates:
         assert "Dr. Jane Smith" in prompt
         assert "deep learning, NLP" in prompt
         assert "Professor of CS" in prompt
-        assert "confidence" in prompt  # Updated to match actual template (lowercase in JSON spec)
+        assert (
+            "confidence" in prompt
+        )  # Updated to match actual template (lowercase in JSON spec)
 
     def test_linkedin_match_template_formatting(self):
         """Test that LinkedIn match template formats correctly."""
@@ -274,7 +276,9 @@ class TestMatchNames:
     async def test_parses_name_match_decision(self, mocker):
         """Test that match_names parses decision and confidence."""
         # Arrange
-        mock_response = '{"decision": "yes", "confidence": 95, "reasoning": "Same person"}'
+        mock_response = (
+            '{"decision": "yes", "confidence": 95, "reasoning": "Same person"}'
+        )
         mocker.patch(
             "src.utils.llm_helpers.call_llm_with_retry",
             new_callable=AsyncMock,

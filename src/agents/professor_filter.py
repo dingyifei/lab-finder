@@ -72,9 +72,7 @@ def parse_professor_data(text: str) -> list[dict]:
         return []
 
 
-def parse_professor_elements(
-    elements: list, department: Department
-) -> list[dict]:
+def parse_professor_elements(elements: list, department: Department) -> list[dict]:
     """Parse professor data from BeautifulSoup elements.
 
     Args:
@@ -116,9 +114,7 @@ def parse_professor_elements(
 
         # Extract email
         email_elem = element.find("a", href=re.compile(r"^mailto:"))
-        email = (
-            email_elem["href"].replace("mailto:", "") if email_elem else None
-        )
+        email = email_elem["href"].replace("mailto:", "") if email_elem else None
 
         # Extract research areas (look for keywords)
         text_content = element.get_text()
@@ -267,21 +263,15 @@ Example format:
 
             professor_models.append(prof)
 
-        logger.info(
-            "Discovery successful", professors_count=len(professor_models)
-        )
+        logger.info("Discovery successful", professors_count=len(professor_models))
         return professor_models
 
     except Exception as e:
-        logger.warning(
-            "WebFetch failed, falling back to Playwright", error=str(e)
-        )
+        logger.warning("WebFetch failed, falling back to Playwright", error=str(e))
         return await discover_with_playwright_fallback(department, correlation_id)
 
 
-@retry(
-    stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10)
-)
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
 async def discover_with_playwright_fallback(
     department: Department, correlation_id: str
 ) -> list[Professor]:
@@ -319,9 +309,7 @@ async def discover_with_playwright_fallback(
             page = await browser.new_page()
 
             # Set timeout to prevent hanging
-            await page.goto(
-                department.url, wait_until="networkidle", timeout=30000
-            )
+            await page.goto(department.url, wait_until="networkidle", timeout=30000)
             await page.wait_for_timeout(2000)
             content = await page.content()
             await browser.close()
@@ -335,12 +323,9 @@ async def discover_with_playwright_fallback(
                 elements = soup.select(selector)
                 if elements:
                     logger.debug(
-                        f"Found {len(elements)} professors with "
-                        f"selector: {selector}"
+                        f"Found {len(elements)} professors with selector: {selector}"
                     )
-                    professors_data = parse_professor_elements(
-                        elements, department
-                    )
+                    professors_data = parse_professor_elements(elements, department)
                     break
 
             # No professors found - flag but don't fail
@@ -414,9 +399,7 @@ def load_relevant_departments(correlation_id: str) -> list[Department]:
     )
 
     checkpoint_manager = CheckpointManager()
-    departments_data = checkpoint_manager.load_batches(
-        "phase-1-relevant-departments"
-    )
+    departments_data = checkpoint_manager.load_batches("phase-1-relevant-departments")
 
     # Convert to Department models and filter for relevant only
     departments = [

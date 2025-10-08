@@ -131,6 +131,7 @@ Provide your JSON response:"""
 
         # Parse JSON response
         import json
+
         try:
             # Extract JSON from response (may be in markdown code blocks)
             json_text = streamlined.strip()
@@ -150,7 +151,7 @@ Provide your JSON response:"""
                 "Research interests streamlined",
                 summary_length=len(summary),
                 keywords_count=len(keywords),
-                keywords=keywords[:5] if keywords else []  # Log first 5 keywords
+                keywords=keywords[:5] if keywords else [],  # Log first 5 keywords
             )
             return summary
 

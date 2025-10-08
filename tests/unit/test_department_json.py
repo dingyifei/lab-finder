@@ -118,7 +118,9 @@ def mock_checkpoint_manager(sample_departments: list[Department]) -> MagicMock:
 
 
 @pytest.fixture
-def agent_with_checkpoint(mock_checkpoint_manager: MagicMock) -> UniversityDiscoveryAgent:
+def agent_with_checkpoint(
+    mock_checkpoint_manager: MagicMock,
+) -> UniversityDiscoveryAgent:
     """Create agent with mocked checkpoint manager."""
     return UniversityDiscoveryAgent(
         correlation_id="test-correlation-id",
@@ -130,7 +132,9 @@ class TestLoadDepartmentsFromCheckpoint:
     """Tests for Task 1: Load Department Data from Checkpoint."""
 
     def test_load_departments_success(
-        self, agent_with_checkpoint: UniversityDiscoveryAgent, sample_departments: list[Department]
+        self,
+        agent_with_checkpoint: UniversityDiscoveryAgent,
+        sample_departments: list[Department],
     ) -> None:
         """Test successful loading of departments from checkpoint."""
         # Act
@@ -173,7 +177,9 @@ class TestLoadDepartmentsFromCheckpoint:
         """Test error when checkpoint file doesn't exist."""
         # Arrange
         mock_manager = MagicMock(spec=CheckpointManager)
-        mock_manager.load_batches.side_effect = FileNotFoundError("Checkpoint not found")
+        mock_manager.load_batches.side_effect = FileNotFoundError(
+            "Checkpoint not found"
+        )
         agent = UniversityDiscoveryAgent(
             correlation_id="test-id",
             checkpoint_manager=mock_manager,
@@ -235,7 +241,9 @@ class TestCalculateDepartmentSummary:
     """Tests for Task 2: Calculate Department Count Summary."""
 
     def test_calculate_summary_mixed_hierarchy(
-        self, agent_with_checkpoint: UniversityDiscoveryAgent, sample_departments: list[Department]
+        self,
+        agent_with_checkpoint: UniversityDiscoveryAgent,
+        sample_departments: list[Department],
     ) -> None:
         """Test summary calculation with mixed hierarchy levels."""
         # Act
@@ -247,11 +255,15 @@ class TestCalculateDepartmentSummary:
         assert summary["total_departments"] == 3
 
     def test_calculate_summary_flat_structure(
-        self, agent_with_checkpoint: UniversityDiscoveryAgent, flat_structure_departments: list[Department]
+        self,
+        agent_with_checkpoint: UniversityDiscoveryAgent,
+        flat_structure_departments: list[Department],
     ) -> None:
         """Test summary calculation for flat structure (no divisions)."""
         # Act
-        summary = agent_with_checkpoint.calculate_department_summary(flat_structure_departments)
+        summary = agent_with_checkpoint.calculate_department_summary(
+            flat_structure_departments
+        )
 
         # Assert
         assert summary["total_schools"] == 1
@@ -275,14 +287,18 @@ class TestCreateHierarchicalJson:
     """Tests for Task 3: Transform to Hierarchical JSON Structure."""
 
     def test_create_hierarchical_json_mixed_structure(
-        self, agent_with_checkpoint: UniversityDiscoveryAgent, sample_departments: list[Department]
+        self,
+        agent_with_checkpoint: UniversityDiscoveryAgent,
+        sample_departments: list[Department],
     ) -> None:
         """Test hierarchical JSON creation with mixed structure."""
         # Arrange
         summary = agent_with_checkpoint.calculate_department_summary(sample_departments)
 
         # Act
-        hierarchy = agent_with_checkpoint.create_hierarchical_json(sample_departments, summary)
+        hierarchy = agent_with_checkpoint.create_hierarchical_json(
+            sample_departments, summary
+        )
 
         # Assert
         assert hierarchy["university"]  # Should have a university name
@@ -293,25 +309,35 @@ class TestCreateHierarchicalJson:
         assert len(hierarchy["schools"]) == 2
 
         # Check School of Engineering (flat structure)
-        eng_school = next(s for s in hierarchy["schools"] if s["name"] == "School of Engineering")
+        eng_school = next(
+            s for s in hierarchy["schools"] if s["name"] == "School of Engineering"
+        )
         assert "divisions" not in eng_school  # No divisions for flat structure
         assert len(eng_school["departments"]) == 2
 
         # Check School of Medicine (with divisions)
-        med_school = next(s for s in hierarchy["schools"] if s["name"] == "School of Medicine")
+        med_school = next(
+            s for s in hierarchy["schools"] if s["name"] == "School of Medicine"
+        )
         assert "divisions" in med_school
         assert len(med_school["divisions"]) == 1
         assert med_school["divisions"][0]["name"] == "Basic Sciences"
 
     def test_create_hierarchical_json_flat_structure(
-        self, agent_with_checkpoint: UniversityDiscoveryAgent, flat_structure_departments: list[Department]
+        self,
+        agent_with_checkpoint: UniversityDiscoveryAgent,
+        flat_structure_departments: list[Department],
     ) -> None:
         """Test hierarchical JSON for completely flat structure."""
         # Arrange
-        summary = agent_with_checkpoint.calculate_department_summary(flat_structure_departments)
+        summary = agent_with_checkpoint.calculate_department_summary(
+            flat_structure_departments
+        )
 
         # Act
-        hierarchy = agent_with_checkpoint.create_hierarchical_json(flat_structure_departments, summary)
+        hierarchy = agent_with_checkpoint.create_hierarchical_json(
+            flat_structure_departments, summary
+        )
 
         # Assert
         assert len(hierarchy["schools"]) == 1
@@ -320,14 +346,20 @@ class TestCreateHierarchicalJson:
         assert len(school["departments"]) == 2
 
     def test_create_hierarchical_json_three_levels(
-        self, agent_with_checkpoint: UniversityDiscoveryAgent, three_level_hierarchy_departments: list[Department]
+        self,
+        agent_with_checkpoint: UniversityDiscoveryAgent,
+        three_level_hierarchy_departments: list[Department],
     ) -> None:
         """Test hierarchical JSON with 3-level hierarchy."""
         # Arrange
-        summary = agent_with_checkpoint.calculate_department_summary(three_level_hierarchy_departments)
+        summary = agent_with_checkpoint.calculate_department_summary(
+            three_level_hierarchy_departments
+        )
 
         # Act
-        hierarchy = agent_with_checkpoint.create_hierarchical_json(three_level_hierarchy_departments, summary)
+        hierarchy = agent_with_checkpoint.create_hierarchical_json(
+            three_level_hierarchy_departments, summary
+        )
 
         # Assert
         assert len(hierarchy["schools"]) == 1
@@ -337,31 +369,46 @@ class TestCreateHierarchicalJson:
         division = school["divisions"][0]
         assert len(division["departments"]) == 1
 
-    @patch("builtins.open", new_callable=mock_open, read_data='{"university_name": "Test University"}')
+    @patch(
+        "builtins.open",
+        new_callable=mock_open,
+        read_data='{"university_name": "Test University"}',
+    )
     @patch("pathlib.Path.exists", return_value=True)
     def test_university_name_from_config(
-        self, mock_exists: MagicMock, mock_file: MagicMock, agent_with_checkpoint: UniversityDiscoveryAgent, sample_departments: list[Department]
+        self,
+        mock_exists: MagicMock,
+        mock_file: MagicMock,
+        agent_with_checkpoint: UniversityDiscoveryAgent,
+        sample_departments: list[Department],
     ) -> None:
         """Test university name extraction from config file."""
         # Arrange
         summary = agent_with_checkpoint.calculate_department_summary(sample_departments)
 
         # Act
-        hierarchy = agent_with_checkpoint.create_hierarchical_json(sample_departments, summary)
+        hierarchy = agent_with_checkpoint.create_hierarchical_json(
+            sample_departments, summary
+        )
 
         # Assert
         assert hierarchy["university"] == "Test University"
 
     @patch("pathlib.Path.exists", return_value=False)
     def test_university_name_from_url(
-        self, mock_exists: MagicMock, agent_with_checkpoint: UniversityDiscoveryAgent, sample_departments: list[Department]
+        self,
+        mock_exists: MagicMock,
+        agent_with_checkpoint: UniversityDiscoveryAgent,
+        sample_departments: list[Department],
     ) -> None:
         """Test university name extraction from department URL."""
         # Arrange
         summary = agent_with_checkpoint.calculate_department_summary(sample_departments)
 
         # Act
-        hierarchy = agent_with_checkpoint.create_hierarchical_json(sample_departments, summary)
+        hierarchy = agent_with_checkpoint.create_hierarchical_json(
+            sample_departments, summary
+        )
 
         # Assert
         # Should extract "stanford" from https://cs.stanford.edu
@@ -371,10 +418,17 @@ class TestCreateHierarchicalJson:
 class TestValidateHierarchicalJson:
     """Tests for Task 4: Validate JSON Schema."""
 
-    @patch("builtins.open", new_callable=mock_open, read_data='{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "required": ["university", "discovery_date", "schools"], "properties": {"university": {"type": "string"}, "discovery_date": {"type": "string"}, "schools": {"type": "array"}}}')
+    @patch(
+        "builtins.open",
+        new_callable=mock_open,
+        read_data='{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "required": ["university", "discovery_date", "schools"], "properties": {"university": {"type": "string"}, "discovery_date": {"type": "string"}, "schools": {"type": "array"}}}',
+    )
     @patch("pathlib.Path.exists", return_value=True)
     def test_validate_json_success(
-        self, mock_exists: MagicMock, mock_file: MagicMock, agent_with_checkpoint: UniversityDiscoveryAgent
+        self,
+        mock_exists: MagicMock,
+        mock_file: MagicMock,
+        agent_with_checkpoint: UniversityDiscoveryAgent,
     ) -> None:
         """Test successful JSON validation."""
         # Arrange
@@ -387,10 +441,17 @@ class TestValidateHierarchicalJson:
         # Act & Assert - should not raise
         agent_with_checkpoint.validate_hierarchical_json(valid_json)
 
-    @patch("builtins.open", new_callable=mock_open, read_data='{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "required": ["university", "discovery_date", "schools"], "properties": {"university": {"type": "string"}, "discovery_date": {"type": "string"}, "schools": {"type": "array"}}}')
+    @patch(
+        "builtins.open",
+        new_callable=mock_open,
+        read_data='{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "required": ["university", "discovery_date", "schools"], "properties": {"university": {"type": "string"}, "discovery_date": {"type": "string"}, "schools": {"type": "array"}}}',
+    )
     @patch("pathlib.Path.exists", return_value=True)
     def test_validate_json_missing_required_field(
-        self, mock_exists: MagicMock, mock_file: MagicMock, agent_with_checkpoint: UniversityDiscoveryAgent
+        self,
+        mock_exists: MagicMock,
+        mock_file: MagicMock,
+        agent_with_checkpoint: UniversityDiscoveryAgent,
     ) -> None:
         """Test validation failure for missing required field."""
         # Arrange
@@ -409,7 +470,11 @@ class TestValidateHierarchicalJson:
     ) -> None:
         """Test error when schema file doesn't exist."""
         # Arrange
-        valid_json = {"university": "Test", "discovery_date": "2025-10-07", "schools": []}
+        valid_json = {
+            "university": "Test",
+            "discovery_date": "2025-10-07",
+            "schools": [],
+        }
 
         # Act & Assert
         with pytest.raises(FileNotFoundError, match="Schema file not found"):
@@ -420,7 +485,9 @@ class TestGetDepartmentsForParallelProcessing:
     """Tests for Task 5: Enable Parallel Async Iteration."""
 
     def test_get_departments_for_parallel_processing(
-        self, agent_with_checkpoint: UniversityDiscoveryAgent, sample_departments: list[Department]
+        self,
+        agent_with_checkpoint: UniversityDiscoveryAgent,
+        sample_departments: list[Department],
     ) -> None:
         """Test getting flattened department list for parallel processing."""
         # Act
@@ -440,7 +507,9 @@ class TestGetDepartmentsForParallelProcessing:
         departments = agent_with_checkpoint.get_departments_for_parallel_processing()
 
         # Assert
-        agent_with_checkpoint.checkpoint_manager.load_batches.assert_called_once_with("phase-1-departments")
+        agent_with_checkpoint.checkpoint_manager.load_batches.assert_called_once_with(
+            "phase-1-departments"
+        )
         assert len(departments) == 3
 
 
@@ -460,7 +529,9 @@ class TestSaveHierarchicalJson:
         output_path = tmp_path / "test-structure.json"
 
         # Act
-        saved_path = agent_with_checkpoint.save_hierarchical_json(test_json, output_path)
+        saved_path = agent_with_checkpoint.save_hierarchical_json(
+            test_json, output_path
+        )
 
         # Assert
         assert saved_path == output_path
@@ -477,7 +548,10 @@ class TestSaveHierarchicalJson:
             assert loaded_json == test_json
 
     def test_save_hierarchical_json_default_path(
-        self, agent_with_checkpoint: UniversityDiscoveryAgent, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self,
+        agent_with_checkpoint: UniversityDiscoveryAgent,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test save with default path."""
         # Arrange
@@ -500,11 +574,17 @@ class TestSaveHierarchicalJson:
     ) -> None:
         """Test that parent directory is created if it doesn't exist."""
         # Arrange
-        test_json = {"university": "Test", "discovery_date": "2025-10-07", "schools": []}
+        test_json = {
+            "university": "Test",
+            "discovery_date": "2025-10-07",
+            "schools": [],
+        }
         output_path = tmp_path / "new_dir" / "subdir" / "test.json"
 
         # Act
-        saved_path = agent_with_checkpoint.save_hierarchical_json(test_json, output_path)
+        saved_path = agent_with_checkpoint.save_hierarchical_json(
+            test_json, output_path
+        )
 
         # Assert
         assert saved_path.exists()
@@ -515,7 +595,10 @@ class TestEndToEndWorkflow:
     """Integration tests for complete Story 2.2 workflow."""
 
     def test_complete_workflow(
-        self, agent_with_checkpoint: UniversityDiscoveryAgent, sample_departments: list[Department], tmp_path: Path
+        self,
+        agent_with_checkpoint: UniversityDiscoveryAgent,
+        sample_departments: list[Department],
+        tmp_path: Path,
     ) -> None:
         """Test complete workflow from loading to saving."""
         # Task 1: Load departments
@@ -533,7 +616,9 @@ class TestEndToEndWorkflow:
 
         # Task 6: Save JSON
         output_path = tmp_path / "test-output.json"
-        saved_path = agent_with_checkpoint.save_hierarchical_json(hierarchy, output_path)
+        saved_path = agent_with_checkpoint.save_hierarchical_json(
+            hierarchy, output_path
+        )
         assert saved_path.exists()
 
         # Verify saved content

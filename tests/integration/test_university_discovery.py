@@ -12,29 +12,31 @@ from src.utils.checkpoint_manager import CheckpointManager
 @pytest.fixture
 def mock_sdk_response():
     """Mock Claude Agent SDK JSON response."""
-    return json.dumps([
-        {
-            "name": "Computer Science",
-            "url": "https://example.edu/cs",
-            "school": "School of Engineering",
-            "division": None,
-            "hierarchy_level": 2
-        },
-        {
-            "name": "Electrical Engineering",
-            "url": "https://example.edu/ee",
-            "school": "School of Engineering",
-            "division": None,
-            "hierarchy_level": 2
-        },
-        {
-            "name": "Mathematics",
-            "url": "https://example.edu/math",
-            "school": "School of Arts and Sciences",
-            "division": None,
-            "hierarchy_level": 2
-        }
-    ])
+    return json.dumps(
+        [
+            {
+                "name": "Computer Science",
+                "url": "https://example.edu/cs",
+                "school": "School of Engineering",
+                "division": None,
+                "hierarchy_level": 2,
+            },
+            {
+                "name": "Electrical Engineering",
+                "url": "https://example.edu/ee",
+                "school": "School of Engineering",
+                "division": None,
+                "hierarchy_level": 2,
+            },
+            {
+                "name": "Mathematics",
+                "url": "https://example.edu/math",
+                "school": "School of Arts and Sciences",
+                "division": None,
+                "hierarchy_level": 2,
+            },
+        ]
+    )
 
 
 @pytest.fixture
@@ -50,6 +52,7 @@ def agent(tmp_path):
 
 def mock_sdk_query(response_text):
     """Helper to mock Claude Agent SDK query() function."""
+
     async def _mock_query(*args, **kwargs):
         # Create mock message objects
         mock_text_block = MagicMock()
@@ -92,7 +95,9 @@ async def test_discover_structure_sdk_with_markdown(agent):
         "hierarchy_level": 2
     }]"""
 
-    with patch("claude_agent_sdk.query", new=mock_sdk_query(f"```json\n{json_response}\n```")):
+    with patch(
+        "claude_agent_sdk.query", new=mock_sdk_query(f"```json\n{json_response}\n```")
+    ):
         with patch("claude_agent_sdk.ClaudeAgentOptions"):
             with patch("claude_agent_sdk.AssistantMessage", MagicMock):
                 with patch("claude_agent_sdk.TextBlock", MagicMock):
@@ -105,6 +110,7 @@ async def test_discover_structure_sdk_with_markdown(agent):
 @pytest.mark.asyncio
 async def test_discover_structure_sdk_failure_uses_fallback(agent, tmp_path):
     """Test graceful degradation when SDK fails - uses manual fallback."""
+
     # Mock SDK to raise an exception
     async def _mock_failing_query(*args, **kwargs):
         raise Exception("SDK connection failed")
@@ -190,7 +196,9 @@ def test_validate_department_structure_warnings(agent):
     departments = [
         Department(name="CS", url="https://cs.edu", school="Engineering"),
         Department(name="Math", url="https://math.edu", school="Engineering"),
-        Department(name="Physics", url="https://phys.edu", school=None),  # 66% have schools
+        Department(
+            name="Physics", url="https://phys.edu", school=None
+        ),  # 66% have schools
     ]
 
     result = agent.validate_department_structure(departments)
@@ -262,9 +270,7 @@ def test_load_manual_fallback_file_not_found(agent, tmp_path):
 @pytest.mark.asyncio
 async def test_run_discovery_workflow(agent, tmp_path, mock_sdk_response):
     """Test complete discovery workflow with checkpointing."""
-    system_params = {
-        "batch_config": {"department_discovery_batch_size": 5}
-    }
+    system_params = {"batch_config": {"department_discovery_batch_size": 5}}
 
     # Mock SDK and agent's discover_structure to return valid departments
     with patch("claude_agent_sdk.query", new=mock_sdk_query(mock_sdk_response)):

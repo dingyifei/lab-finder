@@ -49,70 +49,70 @@ async def main():
             name="Bioengineering",
             school="Jacobs School of Engineering",
             url="https://be.ucsd.edu",
-            hierarchy_level=2
+            hierarchy_level=2,
         ),
         Department(
             id="dept-002",
             name="Computer Science and Engineering",
             school="Jacobs School of Engineering",
             url="https://cse.ucsd.edu",
-            hierarchy_level=2
+            hierarchy_level=2,
         ),
         Department(
             id="dept-003",
             name="Biology",
             school="Division of Biological Sciences",
             url="https://biology.ucsd.edu",
-            hierarchy_level=2
+            hierarchy_level=2,
         ),
         Department(
             id="dept-004",
             name="Chemistry and Biochemistry",
             school="Division of Physical Sciences",
             url="https://chemistry.ucsd.edu",
-            hierarchy_level=2
+            hierarchy_level=2,
         ),
         Department(
             id="dept-005",
             name="English Literature",
             school="Division of Arts and Humanities",
             url="https://english.ucsd.edu",
-            hierarchy_level=2
+            hierarchy_level=2,
         ),
         Department(
             id="dept-006",
             name="Mathematics",
             school="Division of Physical Sciences",
             url="https://math.ucsd.edu",
-            hierarchy_level=2
+            hierarchy_level=2,
         ),
         Department(
             id="dept-007",
             name="Mechanical and Aerospace Engineering",
             school="Jacobs School of Engineering",
             url="https://mae.ucsd.edu",
-            hierarchy_level=2
+            hierarchy_level=2,
         ),
         Department(
             id="dept-008",
             name="Graduate Studies",
             school="University",
             url="https://grad.ucsd.edu",
-            hierarchy_level=1
+            hierarchy_level=1,
         ),
         Department(
             id="dept-009",
             name="Bioinformatics and Systems Biology",
             school="Division of Biological Sciences",
             url="https://bioinformatics.ucsd.edu",
-            hierarchy_level=2
+            hierarchy_level=2,
         ),
         Department(
             id="dept-010",
             name="Computational Science",
             school="San Diego Supercomputer Center",
             url="https://sdsc.ucsd.edu",
-            hierarchy_level=2
+            hierarchy_level=2,
         ),
     ]
 
@@ -122,8 +122,7 @@ async def main():
     # Initialize agent with checkpoint manager
     checkpoint_manager = CheckpointManager(checkpoint_dir=Path("checkpoints"))
     agent = UniversityDiscoveryAgent(
-        correlation_id="integration-test-2.3",
-        checkpoint_manager=checkpoint_manager
+        correlation_id="integration-test-2.3", checkpoint_manager=checkpoint_manager
     )
 
     print("[OK] Initialized UniversityDiscoveryAgent")
@@ -139,7 +138,9 @@ async def main():
 
     # Mock the LLM call
     print("Setting up LLM mock for testing...")
-    with patch('src.utils.llm_helpers.call_llm_with_retry', new_callable=AsyncMock) as mock_llm:
+    with patch(
+        "src.utils.llm_helpers.call_llm_with_retry", new_callable=AsyncMock
+    ) as mock_llm:
         mock_llm.side_effect = lambda prompt, *args, **kwargs: mock_llm_response(prompt)
 
         print("[OK] LLM mock configured")
@@ -154,7 +155,7 @@ async def main():
         filtered_departments = await agent.filter_departments(
             departments=sample_departments,
             user_profile=user_profile,
-            use_progress_tracker=False  # Disable for cleaner output
+            use_progress_tracker=False,  # Disable for cleaner output
         )
 
         print()
@@ -171,7 +172,9 @@ async def main():
         print(f"  Total departments: {len(filtered_departments)}")
         print(f"  Relevant: {len(relevant)}")
         print(f"  Excluded: {len(excluded)}")
-        print(f"  Retention rate: {len(relevant)/len(filtered_departments)*100:.1f}%")
+        print(
+            f"  Retention rate: {len(relevant) / len(filtered_departments) * 100:.1f}%"
+        )
         print()
 
         # Show relevant departments
@@ -197,7 +200,9 @@ async def main():
         # Save relevant departments to checkpoint
         print("Saving relevant departments to checkpoint...")
         agent.save_relevant_departments_checkpoint(filtered_departments)
-        print("[OK] Checkpoint saved to: checkpoints/phase-1-relevant-departments.jsonl")
+        print(
+            "[OK] Checkpoint saved to: checkpoints/phase-1-relevant-departments.jsonl"
+        )
         print()
 
         # Verify checkpoint
@@ -209,7 +214,9 @@ async def main():
         # Display checkpoint file location
         checkpoint_file = Path("checkpoints/phase-1-relevant-departments-batch-0.jsonl")
         if checkpoint_file.exists():
-            print(f"[FILE] Checkpoint file size: {checkpoint_file.stat().st_size} bytes")
+            print(
+                f"[FILE] Checkpoint file size: {checkpoint_file.stat().st_size} bytes"
+            )
 
         print()
         print("=" * 80)

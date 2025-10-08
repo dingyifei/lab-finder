@@ -147,9 +147,7 @@ async def test_discover_professors_invalid_url():
         is_relevant=True,
     )
 
-    professors = await discover_professors_for_department(
-        dept, "test-corr-id"
-    )
+    professors = await discover_professors_for_department(dept, "test-corr-id")
     assert professors == []
 
 
@@ -159,9 +157,7 @@ async def test_discover_professors_sdk_failure_triggers_playwright(mocker):
     """Test that WebFetch failure triggers Playwright fallback."""
     # Mock ClaudeSDKClient to raise exception
     mock_client = AsyncMock()
-    mock_client.__aenter__ = AsyncMock(
-        side_effect=Exception("WebFetch failed")
-    )
+    mock_client.__aenter__ = AsyncMock(side_effect=Exception("WebFetch failed"))
     mocker.patch(
         "src.agents.professor_filter.ClaudeSDKClient",
         return_value=mock_client,

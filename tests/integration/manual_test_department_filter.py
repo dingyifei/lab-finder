@@ -20,15 +20,19 @@ async def test_department_filtering():
         research_interests="Machine learning, artificial intelligence, and deep learning",
         degree="PhD in Computer Science",
         background="MS in CS from UC Berkeley with focus on ML",
-        correlation_id="test-dept-filter-1"
+        correlation_id="test-dept-filter-1",
     )
 
     print(f"Decision: {result1['decision']}")
     print(f"Confidence: {result1['confidence']}")
     print(f"Reasoning: {result1['reasoning']}")
 
-    assert result1['decision'] == 'include', f"Expected 'include', got '{result1['decision']}'"
-    assert result1['confidence'] > 70, f"Expected confidence > 70, got {result1['confidence']}"
+    assert result1["decision"] == "include", (
+        f"Expected 'include', got '{result1['decision']}'"
+    )
+    assert result1["confidence"] > 70, (
+        f"Expected confidence > 70, got {result1['confidence']}"
+    )
     print("[PASS] Test 1 PASSED")
 
     # Test case 2: Irrelevant department
@@ -41,14 +45,16 @@ async def test_department_filtering():
         research_interests="Machine learning, artificial intelligence, and deep learning",
         degree="PhD in Computer Science",
         background="MS in CS from UC Berkeley with focus on ML",
-        correlation_id="test-dept-filter-2"
+        correlation_id="test-dept-filter-2",
     )
 
     print(f"Decision: {result2['decision']}")
     print(f"Confidence: {result2['confidence']}")
     print(f"Reasoning: {result2['reasoning']}")
 
-    assert result2['decision'] == 'exclude', f"Expected 'exclude', got '{result2['decision']}'"
+    assert result2["decision"] == "exclude", (
+        f"Expected 'exclude', got '{result2['decision']}'"
+    )
     print("[PASS] Test 2 PASSED")
 
     # Test case 3: Borderline/interdisciplinary department
@@ -61,7 +67,7 @@ async def test_department_filtering():
         research_interests="Machine learning, artificial intelligence, and deep learning",
         degree="PhD in Computer Science",
         background="MS in CS from UC Berkeley with focus on ML",
-        correlation_id="test-dept-filter-3"
+        correlation_id="test-dept-filter-3",
     )
 
     print(f"Decision: {result3['decision']}")
@@ -69,7 +75,9 @@ async def test_department_filtering():
     print(f"Reasoning: {result3['reasoning']}")
 
     # Should include due to "ANY potential overlap" guideline
-    assert result3['decision'] == 'include', f"Expected 'include', got '{result3['decision']}'"
+    assert result3["decision"] == "include", (
+        f"Expected 'include', got '{result3['decision']}'"
+    )
     print("[PASS] Test 3 PASSED")
 
     print("\n" + "=" * 60)
@@ -88,4 +96,5 @@ if __name__ == "__main__":
         print(f"\n[FAIL] {e}")
         print(f"\nError type: {type(e).__name__}")
         import traceback
+
         traceback.print_exc()

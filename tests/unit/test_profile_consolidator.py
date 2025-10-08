@@ -248,7 +248,9 @@ class TestProfileConsolidation:
     ):
         """Test JSON parsing when LLM returns JSON in generic ``` code blocks."""
         # Arrange
-        mock_llm_response = '```\n{"summary": "Summary from generic block", "keywords": ["test"]}\n```'
+        mock_llm_response = (
+            '```\n{"summary": "Summary from generic block", "keywords": ["test"]}\n```'
+        )
 
         with patch(
             "src.agents.profile_consolidator.call_llm_with_retry",

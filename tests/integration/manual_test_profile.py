@@ -19,14 +19,14 @@ async def test_profile_consolidation():
         "research_interests": [
             "My research focuses on developing scalable deep learning algorithms for natural language understanding, with particular emphasis on transformer architectures and their applications to multilingual text processing. I'm interested in improving model efficiency and interpretability while maintaining high performance across diverse linguistic contexts.",
             "I work on computer vision systems for autonomous vehicles, specifically addressing challenges in real-time object detection, semantic segmentation, and scene understanding under varying environmental conditions. My approach combines traditional computer vision techniques with modern deep learning methods.",
-            "I'm passionate about the intersection of AI and healthcare, particularly using machine learning for early disease detection from medical imaging data. My work involves developing novel neural network architectures that can learn from limited labeled data while providing clinically interpretable predictions."
+            "I'm passionate about the intersection of AI and healthcare, particularly using machine learning for early disease detection from medical imaging data. My work involves developing novel neural network architectures that can learn from limited labeled data while providing clinically interpretable predictions.",
         ],
         "resume_highlights": {
             "education": [
                 {
                     "degree": "MS in Computer Science",
                     "institution": "UC Berkeley",
-                    "year": 2022
+                    "year": 2022,
                 }
             ],
             "skills": ["Python", "TensorFlow", "PyTorch", "Research Writing"],
@@ -34,16 +34,16 @@ async def test_profile_consolidation():
                 {
                     "title": "Research Assistant",
                     "description": "Developed transformer models for question answering",
-                    "duration": "2021-2022"
+                    "duration": "2021-2022",
                 }
-            ]
+            ],
         },
-        "preferred_graduation_duration": 5.5
+        "preferred_graduation_duration": 5.5,
     }
 
     university_config = {
         "core_website": "https://www.stanford.edu",
-        "university_name": "Stanford University"
+        "university_name": "Stanford University",
     }
 
     # Test consolidation
@@ -80,6 +80,7 @@ async def test_profile_consolidation():
         print(f"\n[FAIL] {e}")
         print(f"\nError type: {type(e).__name__}")
         import traceback
+
         traceback.print_exc()
 
 

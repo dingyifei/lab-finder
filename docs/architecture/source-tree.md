@@ -18,6 +18,7 @@ lab-finder/
 │   │
 │   ├── models/                      # Pydantic data models
 │   │   ├── __init__.py
+│   │   ├── config.py                # SystemParams, BatchConfig models
 │   │   ├── user_profile.py         # UserProfile model
 │   │   ├── department.py           # Department model
 │   │   ├── professor.py            # Professor model

@@ -85,7 +85,7 @@ class TestFilterDepartments:
     async def test_filter_departments_include_relevant(self, mocker):
         """Test that relevant departments are included."""
         # Arrange
-        mock_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
+        mock_llm = mocker.patch("src.utils.llm_helpers.call_llm_with_retry")
         mock_llm.return_value = '{"decision": "include", "confidence": 95, "reasoning": "Strong match with AI research"}'
 
         departments = [
@@ -94,14 +94,14 @@ class TestFilterDepartments:
                 name="Computer Science",
                 school="Engineering",
                 url="https://cs.edu",
-                hierarchy_level=2
+                hierarchy_level=2,
             )
         ]
 
         user_profile = {
             "interests": "Machine learning and AI",
             "degree": "PhD Computer Science",
-            "background": "BS in CS"
+            "background": "BS in CS",
         }
 
         correlation_id = "test-123"
@@ -122,7 +122,7 @@ class TestFilterDepartments:
     async def test_filter_departments_exclude_unrelated(self, mocker):
         """Test that unrelated departments are excluded."""
         # Arrange
-        mock_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
+        mock_llm = mocker.patch("src.utils.llm_helpers.call_llm_with_retry")
         mock_llm.return_value = '{"decision": "exclude", "confidence": 90, "reasoning": "No overlap with bioengineering"}'
 
         departments = [
@@ -131,14 +131,14 @@ class TestFilterDepartments:
                 name="English Literature",
                 school="Humanities",
                 url="https://english.edu",
-                hierarchy_level=2
+                hierarchy_level=2,
             )
         ]
 
         user_profile = {
             "interests": "Bioengineering and tissue engineering",
             "degree": "PhD Bioengineering",
-            "background": "BS in Biology"
+            "background": "BS in Biology",
         }
 
         correlation_id = "test-123"
@@ -158,7 +158,7 @@ class TestFilterDepartments:
     async def test_filter_departments_partial_overlap(self, mocker):
         """Test that departments with partial overlap are included (AC: 2)."""
         # Arrange
-        mock_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
+        mock_llm = mocker.patch("src.utils.llm_helpers.call_llm_with_retry")
         mock_llm.return_value = '{"decision": "include", "confidence": 75, "reasoning": "Partial overlap with data science"}'
 
         departments = [
@@ -167,14 +167,14 @@ class TestFilterDepartments:
                 name="Statistics",
                 school="Science",
                 url="https://stats.edu",
-                hierarchy_level=2
+                hierarchy_level=2,
             )
         ]
 
         user_profile = {
             "interests": "Machine learning algorithms",
             "degree": "PhD Computer Science",
-            "background": "BS in CS"
+            "background": "BS in CS",
         }
 
         correlation_id = "test-123"
@@ -194,12 +194,12 @@ class TestFilterDepartments:
     async def test_filter_departments_empty_list(self, mocker):
         """Test handling of empty department list."""
         # Arrange
-        mock_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
+        mock_llm = mocker.patch("src.utils.llm_helpers.call_llm_with_retry")
 
         user_profile = {
             "interests": "Machine learning",
             "degree": "PhD CS",
-            "background": "BS CS"
+            "background": "BS CS",
         }
 
         correlation_id = "test-123"
@@ -218,7 +218,7 @@ class TestFilterDepartments:
     async def test_filter_departments_llm_error_handling(self, mocker):
         """Test graceful handling of LLM errors."""
         # Arrange
-        mock_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
+        mock_llm = mocker.patch("src.utils.llm_helpers.call_llm_with_retry")
         mock_llm.side_effect = Exception("LLM service unavailable")
 
         departments = [
@@ -227,14 +227,14 @@ class TestFilterDepartments:
                 name="Computer Science",
                 school="Engineering",
                 url="https://cs.edu",
-                hierarchy_level=2
+                hierarchy_level=2,
             )
         ]
 
         user_profile = {
             "interests": "Machine learning",
             "degree": "PhD CS",
-            "background": "BS CS"
+            "background": "BS CS",
         }
 
         correlation_id = "test-123"
@@ -263,7 +263,7 @@ class TestEdgeCaseDetection:
             name="Computer Science & Engineering",
             school="Engineering",
             url="https://cse.edu",
-            hierarchy_level=2
+            hierarchy_level=2,
         )
         llm_result = {"decision": "include", "confidence": 85, "reasoning": "Test"}
 
@@ -284,7 +284,7 @@ class TestEdgeCaseDetection:
             name="Graduate Studies",
             school="University",
             url="https://grad.edu",
-            hierarchy_level=1
+            hierarchy_level=1,
         )
         llm_result = {"decision": "include", "confidence": 70, "reasoning": "Test"}
 
@@ -305,7 +305,7 @@ class TestEdgeCaseDetection:
             name="Chemistry",
             school="Science",
             url="https://chem.edu",
-            hierarchy_level=2
+            hierarchy_level=2,
         )
         llm_result = {"decision": "include", "confidence": 50, "reasoning": "Test"}
 
@@ -326,7 +326,7 @@ class TestEdgeCaseDetection:
             name="Computer Science",
             school="Engineering",
             url="https://cs.edu",
-            hierarchy_level=2
+            hierarchy_level=2,
         )
         llm_result = {"decision": "include", "confidence": 95, "reasoning": "Test"}
 
@@ -347,7 +347,7 @@ class TestEdgeCaseDetection:
             name="Bioengineering & Computer Science",
             school="Engineering",
             url="https://bio-cs.edu",
-            hierarchy_level=2
+            hierarchy_level=2,
         )
 
         correlation_id = "test-123"
@@ -367,7 +367,7 @@ class TestEdgeCaseDetection:
             name="Graduate Studies",
             school="University",
             url="https://grad.edu",
-            hierarchy_level=1
+            hierarchy_level=1,
         )
 
         correlation_id = "test-123"
@@ -397,7 +397,7 @@ class TestSaveFilteredDepartmentsReport:
                 url="https://cs.edu",
                 hierarchy_level=2,
                 is_relevant=True,
-                relevance_reasoning="Strong match"
+                relevance_reasoning="Strong match",
             ),
             Department(
                 id="2",
@@ -406,14 +406,13 @@ class TestSaveFilteredDepartmentsReport:
                 url="https://english.edu",
                 hierarchy_level=2,
                 is_relevant=False,
-                relevance_reasoning="No overlap with engineering research"
+                relevance_reasoning="No overlap with engineering research",
             ),
         ]
 
         correlation_id = "test-123"
         agent = UniversityDiscoveryAgent(
-            correlation_id=correlation_id,
-            output_dir=output_dir
+            correlation_id=correlation_id, output_dir=output_dir
         )
 
         # Act
@@ -443,14 +442,13 @@ class TestSaveFilteredDepartmentsReport:
                 url="https://cs.edu",
                 hierarchy_level=2,
                 is_relevant=True,
-                relevance_reasoning="Strong match"
+                relevance_reasoning="Strong match",
             ),
         ]
 
         correlation_id = "test-123"
         agent = UniversityDiscoveryAgent(
-            correlation_id=correlation_id,
-            output_dir=output_dir
+            correlation_id=correlation_id, output_dir=output_dir
         )
 
         # Act
@@ -483,7 +481,7 @@ class TestSaveRelevantDepartmentsCheckpoint:
                 url="https://cs.edu",
                 hierarchy_level=2,
                 is_relevant=True,
-                relevance_reasoning="Strong match"
+                relevance_reasoning="Strong match",
             ),
             Department(
                 id="2",
@@ -492,14 +490,13 @@ class TestSaveRelevantDepartmentsCheckpoint:
                 url="https://english.edu",
                 hierarchy_level=2,
                 is_relevant=False,
-                relevance_reasoning="No overlap"
+                relevance_reasoning="No overlap",
             ),
         ]
 
         correlation_id = "test-123"
         agent = UniversityDiscoveryAgent(
-            correlation_id=correlation_id,
-            checkpoint_manager=mock_checkpoint_manager
+            correlation_id=correlation_id, checkpoint_manager=mock_checkpoint_manager
         )
 
         # Act
@@ -529,14 +526,13 @@ class TestSaveRelevantDepartmentsCheckpoint:
                 url="https://english.edu",
                 hierarchy_level=2,
                 is_relevant=False,
-                relevance_reasoning="No overlap"
+                relevance_reasoning="No overlap",
             ),
         ]
 
         correlation_id = "test-123"
         agent = UniversityDiscoveryAgent(
-            correlation_id=correlation_id,
-            checkpoint_manager=mock_checkpoint_manager
+            correlation_id=correlation_id, checkpoint_manager=mock_checkpoint_manager
         )
 
         # Act
@@ -556,7 +552,7 @@ class TestSaveRelevantDepartmentsCheckpoint:
                 school="Engineering",
                 url="https://cs.edu",
                 hierarchy_level=2,
-                is_relevant=True
+                is_relevant=True,
             ),
         ]
 
@@ -577,14 +573,14 @@ class TestLLMHelpersDepartmentRelevance:
         # Arrange
         from src.utils.llm_helpers import analyze_department_relevance
 
-        mock_call_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
-        mock_call_llm.return_value = '''```json
+        mock_call_llm = mocker.patch("src.utils.llm_helpers.call_llm_with_retry")
+        mock_call_llm.return_value = """```json
 {
   "decision": "include",
   "confidence": 85,
   "reasoning": "Strong alignment with ML research"
 }
-```'''
+```"""
 
         # Act
         result = await analyze_department_relevance(
@@ -593,7 +589,7 @@ class TestLLMHelpersDepartmentRelevance:
             research_interests="Machine learning and AI",
             degree="PhD CS",
             background="BS CS",
-            correlation_id="test-123"
+            correlation_id="test-123",
         )
 
         # Assert
@@ -607,7 +603,7 @@ class TestLLMHelpersDepartmentRelevance:
         # Arrange
         from src.utils.llm_helpers import analyze_department_relevance
 
-        mock_call_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
+        mock_call_llm = mocker.patch("src.utils.llm_helpers.call_llm_with_retry")
         mock_call_llm.return_value = "This is not valid JSON"
 
         # Act
@@ -617,7 +613,7 @@ class TestLLMHelpersDepartmentRelevance:
             research_interests="Machine learning",
             degree="PhD CS",
             background="BS CS",
-            correlation_id="test-123"
+            correlation_id="test-123",
         )
 
         # Assert
@@ -632,8 +628,10 @@ class TestLLMHelpersDepartmentRelevance:
         # Arrange
         from src.utils.llm_helpers import analyze_department_relevance
 
-        mock_call_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
-        mock_call_llm.return_value = '{"decision": "include"}'  # Missing confidence and reasoning
+        mock_call_llm = mocker.patch("src.utils.llm_helpers.call_llm_with_retry")
+        mock_call_llm.return_value = (
+            '{"decision": "include"}'  # Missing confidence and reasoning
+        )
 
         # Act
         result = await analyze_department_relevance(
@@ -642,7 +640,7 @@ class TestLLMHelpersDepartmentRelevance:
             research_interests="Machine learning",
             degree="PhD CS",
             background="BS CS",
-            correlation_id="test-123"
+            correlation_id="test-123",
         )
 
         # Assert
@@ -659,7 +657,7 @@ class TestLoggingVerification:
     async def test_filter_departments_logs_decisions(self, mocker):
         """Test that filtering decisions are logged with reasoning (AC4)."""
         # Arrange
-        mock_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
+        mock_llm = mocker.patch("src.utils.llm_helpers.call_llm_with_retry")
         mock_llm.return_value = '{"decision": "include", "confidence": 85, "reasoning": "Strong AI research match"}'
 
         departments = [
@@ -668,21 +666,21 @@ class TestLoggingVerification:
                 name="Computer Science",
                 school="Engineering",
                 url="https://cs.edu",
-                hierarchy_level=2
+                hierarchy_level=2,
             )
         ]
 
         user_profile = {
             "interests": "Machine learning and AI",
             "degree": "PhD CS",
-            "background": "BS CS"
+            "background": "BS CS",
         }
 
         correlation_id = "test-log-123"
         agent = UniversityDiscoveryAgent(correlation_id=correlation_id)
 
         # Mock the logger to capture calls
-        mock_logger = mocker.patch.object(agent, 'logger')
+        mock_logger = mocker.patch.object(agent, "logger")
 
         # Act
         await agent.filter_departments(
@@ -695,8 +693,9 @@ class TestLoggingVerification:
 
         # Should have at least one call logging the decision
         assert any(
-            'Department relevance decision' in str(call) or
-            'decision' in call[1] if len(call) > 1 else False
+            "Department relevance decision" in str(call) or "decision" in call[1]
+            if len(call) > 1
+            else False
             for call in info_calls
         ), "Logger should log department filtering decision"
 
@@ -707,8 +706,10 @@ class TestLoggingVerification:
     async def test_filter_departments_logs_edge_cases(self, mocker):
         """Test that edge case departments are logged at WARNING level (AC4)."""
         # Arrange
-        mock_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
-        mock_llm.return_value = '{"decision": "include", "confidence": 50, "reasoning": "Ambiguous match"}'
+        mock_llm = mocker.patch("src.utils.llm_helpers.call_llm_with_retry")
+        mock_llm.return_value = (
+            '{"decision": "include", "confidence": 50, "reasoning": "Ambiguous match"}'
+        )
 
         # Create an edge case department (ambiguous confidence)
         departments = [
@@ -717,21 +718,21 @@ class TestLoggingVerification:
                 name="Interdisciplinary Studies",
                 school="General",
                 url="https://interdis.edu",
-                hierarchy_level=2
+                hierarchy_level=2,
             )
         ]
 
         user_profile = {
             "interests": "Machine learning",
             "degree": "PhD CS",
-            "background": "BS CS"
+            "background": "BS CS",
         }
 
         correlation_id = "test-edge-123"
         agent = UniversityDiscoveryAgent(correlation_id=correlation_id)
 
         # Mock the logger
-        mock_logger = mocker.patch.object(agent, 'logger')
+        mock_logger = mocker.patch.object(agent, "logger")
 
         # Act
         await agent.filter_departments(
@@ -742,7 +743,7 @@ class TestLoggingVerification:
         warning_calls = [call for call in mock_logger.warning.call_args_list]
 
         assert any(
-            'Edge case' in str(call) or 'edge_case' in str(call)
+            "Edge case" in str(call) or "edge_case" in str(call)
             for call in warning_calls
         ), "Logger should log edge case departments at WARNING level"
 
@@ -750,8 +751,10 @@ class TestLoggingVerification:
     async def test_filter_departments_logs_start_and_completion(self, mocker):
         """Test that filtering logs start and completion messages (AC4)."""
         # Arrange
-        mock_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
-        mock_llm.return_value = '{"decision": "include", "confidence": 90, "reasoning": "Good match"}'
+        mock_llm = mocker.patch("src.utils.llm_helpers.call_llm_with_retry")
+        mock_llm.return_value = (
+            '{"decision": "include", "confidence": 90, "reasoning": "Good match"}'
+        )
 
         departments = [
             Department(
@@ -759,18 +762,14 @@ class TestLoggingVerification:
                 name="Computer Science",
                 school="Engineering",
                 url="https://cs.edu",
-                hierarchy_level=2
+                hierarchy_level=2,
             )
         ]
 
-        user_profile = {
-            "interests": "AI",
-            "degree": "PhD CS",
-            "background": "BS CS"
-        }
+        user_profile = {"interests": "AI", "degree": "PhD CS", "background": "BS CS"}
 
         agent = UniversityDiscoveryAgent(correlation_id="test-workflow-123")
-        mock_logger = mocker.patch.object(agent, 'logger')
+        mock_logger = mocker.patch.object(agent, "logger")
 
         # Act
         await agent.filter_departments(
@@ -782,14 +781,13 @@ class TestLoggingVerification:
 
         # Check for start message
         assert any(
-            'Starting department relevance filtering' in str(call)
+            "Starting department relevance filtering" in str(call)
             for call in info_calls
         ), "Logger should log workflow start"
 
         # Check for completion message
         assert any(
-            'Department filtering complete' in str(call)
-            for call in info_calls
+            "Department filtering complete" in str(call) for call in info_calls
         ), "Logger should log workflow completion"
 
 
@@ -800,27 +798,41 @@ class TestProgressTrackerVerification:
     async def test_filter_departments_updates_progress(self, mocker):
         """Test that progress tracker is updated during filtering (AC7)."""
         # Arrange
-        mock_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
-        mock_llm.return_value = '{"decision": "include", "confidence": 90, "reasoning": "Match"}'
+        mock_llm = mocker.patch("src.utils.llm_helpers.call_llm_with_retry")
+        mock_llm.return_value = (
+            '{"decision": "include", "confidence": 90, "reasoning": "Match"}'
+        )
 
         departments = [
-            Department(id="1", name="CS", school="Eng", url="https://a.edu", hierarchy_level=2),
-            Department(id="2", name="Math", school="Sci", url="https://b.edu", hierarchy_level=2),
-            Department(id="3", name="Physics", school="Sci", url="https://c.edu", hierarchy_level=2),
+            Department(
+                id="1", name="CS", school="Eng", url="https://a.edu", hierarchy_level=2
+            ),
+            Department(
+                id="2",
+                name="Math",
+                school="Sci",
+                url="https://b.edu",
+                hierarchy_level=2,
+            ),
+            Department(
+                id="3",
+                name="Physics",
+                school="Sci",
+                url="https://c.edu",
+                hierarchy_level=2,
+            ),
         ]
 
-        user_profile = {
-            "interests": "Physics",
-            "degree": "PhD",
-            "background": "BS"
-        }
+        user_profile = {"interests": "Physics", "degree": "PhD", "background": "BS"}
 
         correlation_id = "test-progress-123"
         agent = UniversityDiscoveryAgent(correlation_id=correlation_id)
 
         # Mock ProgressTracker
         mock_tracker = mocker.Mock()
-        mocker.patch('src.agents.university_discovery.ProgressTracker', return_value=mock_tracker)
+        mocker.patch(
+            "src.agents.university_discovery.ProgressTracker", return_value=mock_tracker
+        )
 
         # Act
         await agent.filter_departments(
@@ -844,12 +856,22 @@ class TestProgressTrackerVerification:
     async def test_filter_departments_progress_shows_count(self, mocker):
         """Test that progress shows 'Filtered X of Y departments' format (AC7)."""
         # Arrange
-        mock_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
-        mock_llm.return_value = '{"decision": "include", "confidence": 90, "reasoning": "Match"}'
+        mock_llm = mocker.patch("src.utils.llm_helpers.call_llm_with_retry")
+        mock_llm.return_value = (
+            '{"decision": "include", "confidence": 90, "reasoning": "Match"}'
+        )
 
         departments = [
-            Department(id="1", name="CS", school="Eng", url="https://a.edu", hierarchy_level=2),
-            Department(id="2", name="Math", school="Sci", url="https://b.edu", hierarchy_level=2),
+            Department(
+                id="1", name="CS", school="Eng", url="https://a.edu", hierarchy_level=2
+            ),
+            Department(
+                id="2",
+                name="Math",
+                school="Sci",
+                url="https://b.edu",
+                hierarchy_level=2,
+            ),
         ]
 
         user_profile = {"interests": "CS", "degree": "PhD", "background": "BS"}
@@ -858,10 +880,14 @@ class TestProgressTrackerVerification:
 
         # Mock ProgressTracker
         mock_tracker = mocker.Mock()
-        mocker.patch('src.agents.university_discovery.ProgressTracker', return_value=mock_tracker)
+        mocker.patch(
+            "src.agents.university_discovery.ProgressTracker", return_value=mock_tracker
+        )
 
         # Act
-        await agent.filter_departments(departments, user_profile, use_progress_tracker=True)
+        await agent.filter_departments(
+            departments, user_profile, use_progress_tracker=True
+        )
 
         # Assert - Verify update was called with incremental counts
         update_calls = mock_tracker.update.call_args_list
@@ -876,11 +902,15 @@ class TestProgressTrackerVerification:
     async def test_filter_departments_no_progress_when_disabled(self, mocker):
         """Test that progress tracker is not used when use_progress_tracker=False."""
         # Arrange
-        mock_llm = mocker.patch('src.utils.llm_helpers.call_llm_with_retry')
-        mock_llm.return_value = '{"decision": "include", "confidence": 90, "reasoning": "Match"}'
+        mock_llm = mocker.patch("src.utils.llm_helpers.call_llm_with_retry")
+        mock_llm.return_value = (
+            '{"decision": "include", "confidence": 90, "reasoning": "Match"}'
+        )
 
         departments = [
-            Department(id="1", name="CS", school="Eng", url="https://a.edu", hierarchy_level=2),
+            Department(
+                id="1", name="CS", school="Eng", url="https://a.edu", hierarchy_level=2
+            ),
         ]
 
         user_profile = {"interests": "CS", "degree": "PhD", "background": "BS"}
@@ -888,10 +918,14 @@ class TestProgressTrackerVerification:
         agent = UniversityDiscoveryAgent(correlation_id="test-no-progress-123")
 
         # Mock ProgressTracker constructor
-        mock_tracker_class = mocker.patch('src.agents.university_discovery.ProgressTracker')
+        mock_tracker_class = mocker.patch(
+            "src.agents.university_discovery.ProgressTracker"
+        )
 
         # Act
-        await agent.filter_departments(departments, user_profile, use_progress_tracker=False)
+        await agent.filter_departments(
+            departments, user_profile, use_progress_tracker=False
+        )
 
         # Assert - ProgressTracker should NOT be instantiated
         mock_tracker_class.assert_not_called()

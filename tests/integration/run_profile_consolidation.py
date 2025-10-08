@@ -55,7 +55,9 @@ async def main():
     print("  - Extracting skills")
     print("  - Extracting research experience")
     print("  - Extracting qualifications")
-    print("  - Streamlining research interests with LLM... (this may take a few seconds)")
+    print(
+        "  - Streamlining research interests with LLM... (this may take a few seconds)"
+    )
     print()
 
     profile = await consolidator.consolidate(user_profile, university_config)

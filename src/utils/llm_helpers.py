@@ -260,7 +260,7 @@ async def call_llm_with_retry(
             max_turns=1,  # Stateless one-off operation
             allowed_tools=[],  # Disable all tools (no Read, Write, Bash, etc.)
             system_prompt="You are an expert text analyst. Respond directly to user prompts with the requested analysis.",
-            setting_sources=None  # Disable loading .claude/settings, CLAUDE.md, etc.
+            setting_sources=None,  # Disable loading .claude/settings, CLAUDE.md, etc.
         )
 
         response_text = ""
@@ -327,13 +327,21 @@ async def analyze_department_relevance(
         result = json.loads(json_text)
 
         # Validate required fields
-        if "decision" not in result or "confidence" not in result or "reasoning" not in result:
+        if (
+            "decision" not in result
+            or "confidence" not in result
+            or "reasoning" not in result
+        ):
             logger.warning(
                 "LLM response missing required fields, using defaults",
                 response=response[:200],
-                correlation_id=correlation_id
+                correlation_id=correlation_id,
             )
-            return {"decision": "exclude", "confidence": 0, "reasoning": "Invalid response format"}
+            return {
+                "decision": "exclude",
+                "confidence": 0,
+                "reasoning": "Invalid response format",
+            }
 
         return cast(dict[str, Any], result)
 
@@ -342,7 +350,7 @@ async def analyze_department_relevance(
             "Failed to parse JSON from LLM response",
             error=str(e),
             response=response[:200],
-            correlation_id=correlation_id
+            correlation_id=correlation_id,
         )
         # Default to exclude on parse error
         return {"decision": "exclude", "confidence": 0, "reasoning": "JSON parse error"}
@@ -387,7 +395,7 @@ async def filter_professor_research(
             logger.warning(
                 "LLM response missing required fields, using defaults",
                 response=response[:200],
-                correlation_id=correlation_id
+                correlation_id=correlation_id,
             )
             return {"confidence": 0, "reasoning": "Invalid response format"}
 
@@ -398,7 +406,7 @@ async def filter_professor_research(
             "Failed to parse JSON from LLM response",
             error=str(e),
             response=response[:200],
-            correlation_id=correlation_id
+            correlation_id=correlation_id,
         )
         # Default to low confidence on parse error
         return {"confidence": 0, "reasoning": "JSON parse error"}
@@ -443,7 +451,7 @@ async def match_linkedin_profile(
             logger.warning(
                 "LLM response missing required fields, using defaults",
                 response=response[:200],
-                correlation_id=correlation_id
+                correlation_id=correlation_id,
             )
             return {"confidence": 0, "reasoning": "Invalid response format"}
 
@@ -454,7 +462,7 @@ async def match_linkedin_profile(
             "Failed to parse JSON from LLM response",
             error=str(e),
             response=response[:200],
-            correlation_id=correlation_id
+            correlation_id=correlation_id,
         )
         # Default to low confidence on parse error
         return {"confidence": 0, "reasoning": "JSON parse error"}
@@ -487,13 +495,21 @@ async def match_names(
         result = json.loads(json_text)
 
         # Validate required fields
-        if "decision" not in result or "confidence" not in result or "reasoning" not in result:
+        if (
+            "decision" not in result
+            or "confidence" not in result
+            or "reasoning" not in result
+        ):
             logger.warning(
                 "LLM response missing required fields, using defaults",
                 response=response[:200],
-                correlation_id=correlation_id
+                correlation_id=correlation_id,
             )
-            return {"decision": "no", "confidence": 0, "reasoning": "Invalid response format"}
+            return {
+                "decision": "no",
+                "confidence": 0,
+                "reasoning": "Invalid response format",
+            }
 
         return cast(dict[str, Any], result)
 
@@ -502,7 +518,7 @@ async def match_names(
             "Failed to parse JSON from LLM response",
             error=str(e),
             response=response[:200],
-            correlation_id=correlation_id
+            correlation_id=correlation_id,
         )
         # Default to no match on parse error
         return {"decision": "no", "confidence": 0, "reasoning": "JSON parse error"}
@@ -542,7 +558,7 @@ async def score_abstract_relevance(
             logger.warning(
                 "LLM response missing required fields, using defaults",
                 response=response[:200],
-                correlation_id=correlation_id
+                correlation_id=correlation_id,
             )
             return {"relevance": 0, "reasoning": "Invalid response format"}
 
@@ -553,7 +569,7 @@ async def score_abstract_relevance(
             "Failed to parse JSON from LLM response",
             error=str(e),
             response=response[:200],
-            correlation_id=correlation_id
+            correlation_id=correlation_id,
         )
         # Default to low relevance on parse error
         return {"relevance": 0, "reasoning": "JSON parse error"}
