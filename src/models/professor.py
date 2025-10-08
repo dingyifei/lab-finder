@@ -11,6 +11,8 @@ PROFESSOR_DATA_QUALITY_FLAGS = {
     "missing_research_areas",  # No research areas found in directory
     "missing_lab_affiliation",  # Lab name/URL not identified
     "ambiguous_lab",  # Multiple possible lab affiliations unclear
+    "llm_filtering_failed",  # LLM call failed, used inclusive default (confidence=0)
+    "low_confidence_filter",  # Confidence below threshold (for Story 3.3 use)
 }
 
 
@@ -30,6 +32,9 @@ class Professor(BaseModel):
         profile_url: Faculty profile URL
         email: Contact email address (optional)
         data_quality_flags: List of data quality issues from PROFESSOR_DATA_QUALITY_FLAGS
+        is_relevant: Filter decision from Story 3.2
+        relevance_confidence: Confidence score 0-100 from LLM filtering
+        relevance_reasoning: LLM explanation for filter decision
     """
 
     id: str
@@ -44,6 +49,11 @@ class Professor(BaseModel):
     profile_url: str
     email: Optional[str] = None
     data_quality_flags: list[str] = Field(default_factory=list)
+
+    # NEW fields for Story 3.2 (LLM-based filtering)
+    is_relevant: bool = False
+    relevance_confidence: int = 0
+    relevance_reasoning: str = ""
 
     def add_quality_flag(self, flag: str) -> None:
         """Add a data quality flag if it's valid and not already present.

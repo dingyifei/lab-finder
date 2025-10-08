@@ -271,10 +271,23 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 **Epic 3: Professor Discovery (IN PROGRESS)**
 - Story 3.1a complete - Professor model + basic discovery (100/100 QA score) ✅
 - Story 3.1b complete - Parallel processing + batch coordination (90/100 QA score) ✅
-- Story 3.1c - Deduplication + rate limiting (next)
-- Story 3.2 - Professor filtering (pending)
+- Story 3.1c complete - Deduplication + rate limiting + checkpointing (95/100 QA score) ✅
+- Story 3.2 complete - LLM-based professor filtering (95/100 QA score) ✅
+- Story 3.3 - Confidence scoring (next)
+- Story 3.4 - Filtered professor logging (pending)
 
 ### Key Insights
+
+**Epic 3 (Story 3.1c):**
+- Deduplication: LLM-based fuzzy name matching with exact match pre-filtering (reduces LLM calls by ~70%)
+- Dual threshold: Requires BOTH `decision == "yes"` AND `confidence >= 90` to confirm duplicates
+- Rate limiting: DomainRateLimiter class with per-domain AsyncLimiter instances (1 req/sec default)
+- Merge strategy: Prefers more complete records, combines data_quality_flags
+- Orchestrator: `discover_and_save_professors()` provides complete workflow (parallel discovery → deduplication → checkpoint save)
+- Performance scaling: Documented thresholds at 50, 200, 500+ professors for optimization strategies
+- Checkpoint: Single batch (`phase-2-professors-batch-1.jsonl`) for consolidated professor list
+- Testing: 7 comprehensive tests including critical edge case (high-confidence "no" match)
+- QA score: 95/100 - production-ready code quality
 
 **Epic 3 (Story 3.1b):**
 - Parallel processing: `discover_professors_parallel()` using asyncio.gather() with Semaphore concurrency control
@@ -284,6 +297,18 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 - Concurrency control: Configurable `max_concurrent` parameter with Semaphore enforcement
 - Testing: 7 new tests covering parallel execution, semaphore limits, progress tracking, error handling, edge cases
 - Key improvement: Progress tracking in finally block for reliability (QA refactoring)
+
+**Epic 3 (Story 3.2):**
+- Professor filtering: LLM-based research alignment using `filter_professor_research()` from llm_helpers
+- Decision logic: Confidence >= 70 → include, < 70 → exclude (configurable threshold)
+- Inclusive fallback: LLM failures default to "include" with confidence=0 for human review
+- Profile loading: Markdown parsing from `output/user_profile.md` with regex extraction
+- Model extensions: Added `is_relevant`, `relevance_confidence`, `relevance_reasoning` to Professor model
+- Data quality flags: `llm_filtering_failed`, `low_confidence_filter` for degraded operations
+- Batch processing: Resumable via checkpoint manager (`phase-2-filter` checkpoints)
+- Edge case handling: Interdisciplinary researchers logged separately, missing research areas included by default
+- SystemParams.load(): Added classmethod for convenient config loading
+- Testing: 15 comprehensive tests (100% AC coverage), ruff ✅, mypy ✅
 
 **Epic 3 (Story 3.1a):**
 - Professor model: `data_quality_flags`, research areas, lab affiliations, profile tracking
@@ -309,15 +334,15 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 
 ### Next Steps
 
-**Immediate:** Story 3.1c (Deduplication + Rate Limiting) - Add professor deduplication across departments with rate limiting
+**Immediate:** Story 3.3 (Confidence Scoring) - Add confidence-based flagging for low-confidence matches
 
-**Following:** Story 3.2 (Professor Filtering) → Story 3.3 (Confidence Scoring) → Story 3.4 (Filtered Professor Logging) → Epic 4 (Lab Intelligence) → Epics 5&6 (parallel) → Epic 7 (Fitness) → Epic 8 (Reports)
+**Following:** Story 3.4 (Filtered Professor Logging) → Epic 4 (Lab Intelligence) → Epics 5&6 (parallel) → Epic 7 (Fitness) → Epic 8 (Reports)
 
 ### Current Environment
 
-**Working Components:** Validation, credential management, checkpoints, logging, LLM helpers, progress tracking, MCP client, profile consolidation, university discovery, department filtering, professor model, professor discovery, parallel professor discovery
+**Working Components:** Validation, credential management, checkpoints, logging, LLM helpers, progress tracking, MCP client, profile consolidation, university discovery, department filtering, professor model, professor discovery, parallel professor discovery, deduplication, rate limiting, professor filtering
 
-**Test Status:** 272+ tests passing (255 from Epics 1-2 + 17 from Stories 3.1a+3.1b), ruff ✅, mypy ✅
+**Test Status:** 294+ tests passing (255 from Epics 1-2 + 24 from Stories 3.1a+3.1b+3.1c + 15 from Story 3.2), ruff ✅, mypy ✅
 
 ## Documentation References
 

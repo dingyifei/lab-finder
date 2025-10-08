@@ -4,6 +4,8 @@ Configuration Models
 Pydantic models for system configuration validation.
 """
 
+import json
+from pathlib import Path
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -73,3 +75,33 @@ class SystemParams(BaseModel):
         if v.upper() not in valid_levels:
             raise ValueError(f"Log level must be one of: {', '.join(valid_levels)}")
         return v.upper()
+
+    @classmethod
+    def load(cls, config_path: Path | str | None = None) -> "SystemParams":
+        """Load system parameters from config file.
+
+        Args:
+            config_path: Path to system_params.json (defaults to config/system_params.json)
+
+        Returns:
+            SystemParams: Validated configuration
+
+        Raises:
+            FileNotFoundError: If config file doesn't exist
+            ValueError: If config validation fails
+        """
+        if config_path is None:
+            config_path = Path("config/system_params.json")
+        else:
+            config_path = Path(config_path)
+
+        if not config_path.exists():
+            raise FileNotFoundError(
+                f"Config file not found: {config_path}. "
+                f"Copy {config_path.stem}.example.json to {config_path.name}"
+            )
+
+        with open(config_path, "r", encoding="utf-8") as f:
+            config_data = json.load(f)
+
+        return cls(**config_data)

@@ -4,7 +4,7 @@ Combined agent for professor discovery and filtering operations.
 - Story 3.1a: Discovery functions (this implementation)
 - Story 3.1b: Parallel processing functions (this implementation)
 - Story 3.1c: Deduplication, rate limiting, and checkpointing (this implementation)
-- Story 3.2: Filtering functions (to be added)
+- Story 3.2: Filtering functions (this implementation)
 """
 
 import asyncio
@@ -12,6 +12,8 @@ import hashlib
 import json
 import re
 import uuid
+from pathlib import Path
+from typing import Any, cast
 from urllib.parse import urlparse
 
 from aiolimiter import AsyncLimiter
@@ -25,11 +27,13 @@ from claude_agent_sdk import (
 from playwright.async_api import async_playwright
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from src.models.config import SystemParams
 from src.models.department import Department
 from src.models.professor import Professor
 from src.utils.checkpoint_manager import CheckpointManager
-from src.utils.llm_helpers import match_names
+from src.utils.llm_helpers import filter_professor_research, match_names
 from src.utils.logger import get_logger
+from src.utils.progress_tracker import ProgressTracker
 
 # Selector patterns to try for professor listings
 SELECTOR_PATTERNS = [
@@ -222,7 +226,7 @@ def parse_professor_data(text: str) -> list[dict[str, object]]:
 
 
 def parse_professor_elements(
-    elements: list, department: Department
+    elements: list[Any], department: Department
 ) -> list[dict[str, str | list[str] | None]]:
     """Parse professor data from BeautifulSoup elements.
 
@@ -399,7 +403,7 @@ Example format:
                 lab_name=str(p["lab_name"]) if p.get("lab_name") else None,
                 lab_url=str(p["lab_url"]) if p.get("lab_url") else None,
                 research_areas=(
-                    list(p.get("research_areas", []))  # type: ignore[arg-type, call-overload]
+                    cast(list[str], p.get("research_areas", []))
                     if isinstance(p.get("research_areas"), list)
                     else []
                 ),
@@ -516,7 +520,7 @@ async def discover_with_playwright_fallback(
                     lab_name=str(lab_name_val) if lab_name_val else None,
                     lab_url=str(lab_url_val) if lab_url_val else None,
                     research_areas=(
-                        list(research_areas_val)  # type: ignore[arg-type]
+                        list(research_areas_val)
                         if isinstance(research_areas_val, list)
                         else []
                     ),
@@ -660,7 +664,7 @@ async def discover_professors_parallel(
             correlation_id = f"prof-disc-{dept.id}-{uuid.uuid4().hex[:8]}"
 
             logger.info(
-                f"Processing department {index+1}/{len(departments)}",
+                f"Processing department {index + 1}/{len(departments)}",
                 department=dept.name,
                 correlation_id=correlation_id,
             )
@@ -708,9 +712,7 @@ async def discover_professors_parallel(
                 tracker.update(completed=completed_count)
 
     # Create tasks for all departments
-    tasks = [
-        process_with_semaphore(dept, i) for i, dept in enumerate(departments)
-    ]
+    tasks = [process_with_semaphore(dept, i) for i, dept in enumerate(departments)]
 
     # Execute in parallel with asyncio.gather
     # return_exceptions=True ensures one failure doesn't stop others
@@ -808,3 +810,354 @@ async def discover_and_save_professors(
     )
 
     return unique_professors
+
+
+# ============================================================================
+# Story 3.2: Professor Filtering Functions
+# ============================================================================
+
+
+def load_user_profile() -> dict[str, str]:
+    """Load consolidated user profile from Story 1.7 output.
+
+    Story 3.2: Task 1 - Load User Research Profile
+
+    Reads output/user_profile.md and extracts structured data for filtering.
+    For filtering, we need research interests and degree.
+
+    Returns:
+        Dict with research_interests and current_degree fields
+
+    Raises:
+        FileNotFoundError: If user profile doesn't exist
+        ValueError: If research interests are missing (required field)
+    """
+    logger = get_logger(
+        correlation_id="profile-loading",
+        phase="professor_filtering",
+        component="professor_filter",
+    )
+
+    profile_path = Path("output/user_profile.md")
+
+    if not profile_path.exists():
+        logger.error("User profile not found", path=str(profile_path))
+        raise FileNotFoundError(
+            "User profile must be generated via Story 1.7 first. "
+            "Run profile consolidation before filtering."
+        )
+
+    content = profile_path.read_text(encoding="utf-8")
+
+    # Extract research interests from "Streamlined Research Focus" section
+    interests_match = re.search(
+        r"### Streamlined Research Focus\s+(.+?)(?=\n#|\n---|\Z)", content, re.DOTALL
+    )
+    interests = interests_match.group(1).strip() if interests_match else ""
+
+    # Extract current position/degree
+    degree_match = re.search(r"\*\*Current Position:\*\* (.+)", content)
+    degree = degree_match.group(1).strip() if degree_match else ""
+
+    # Critical field validation
+    if not interests:
+        logger.error("Research interests missing from user profile")
+        raise ValueError(
+            "Cannot filter professors without research interests. "
+            "User profile is incomplete."
+        )
+
+    # Optional field fallback
+    if not degree:
+        logger.warning("Current degree missing, using 'General' as fallback")
+        degree = "General"
+
+    logger.info(
+        "User profile loaded successfully",
+        interests_length=len(interests),
+        degree=degree,
+    )
+
+    return {"research_interests": interests, "current_degree": degree}
+
+
+def format_profile_for_llm(profile_dict: dict[str, str]) -> str:
+    """Format profile dict as string for llm_helpers.filter_professor_research().
+
+    Story 3.2: Task 3.1 - Prepare profile for LLM
+
+    Args:
+        profile_dict: Dict with research_interests and current_degree
+
+    Returns:
+        Formatted profile string for LLM prompt
+    """
+    return f"""Research Interests: {profile_dict["research_interests"]}
+Degree Program: {profile_dict["current_degree"]}"""
+
+
+async def filter_professor_single(
+    professor: Professor, profile_dict: dict[str, str], correlation_id: str
+) -> dict[str, Any]:
+    """Filter single professor using LLM-based research alignment analysis.
+
+    Story 3.2: Task 3 - Core LLM Filtering Function
+
+    Calls llm_helpers.filter_professor_research() and maps confidence score
+    to include/exclude decision using threshold from system_params.json.
+
+    Decision Logic:
+    - confidence >= 70 → "include"
+    - confidence < 70 → "exclude"
+
+    Edge Cases Handled:
+    - Interdisciplinary researchers: ANY research overlap → include
+    - Emerging fields: Conceptually related → include
+    - Missing research areas: Include by default (investigate later)
+    - LLM failures: Inclusive fallback with data quality flag
+
+    Args:
+        professor: Professor model to filter
+        profile_dict: User profile dict from load_user_profile()
+        correlation_id: Correlation ID for logging
+
+    Returns:
+        Dict with decision ("include"/"exclude"), confidence (0-100), and reasoning (str)
+    """
+    logger = get_logger(
+        correlation_id=correlation_id,
+        phase="professor_filtering",
+        component="professor_filter",
+    )
+
+    # Load configuration
+    system_params = SystemParams.load()
+    threshold = system_params.confidence_thresholds.professor_filter
+
+    # Format inputs for LLM helper
+    research_areas_str = (
+        ", ".join(professor.research_areas)
+        if professor.research_areas
+        else "Not specified"
+    )
+    user_profile_str = format_profile_for_llm(profile_dict)
+
+    logger.debug(
+        "Filtering professor",
+        professor=professor.name,
+        research_areas=research_areas_str,
+    )
+
+    try:
+        # Call existing LLM helper (returns {"confidence": 0-100, "reasoning": "..."})
+        llm_result = await filter_professor_research(
+            professor_name=professor.name,
+            research_areas=research_areas_str,
+            user_profile=user_profile_str,
+            bio="",  # Bio not available at this phase
+            correlation_id=correlation_id,
+        )
+
+        confidence = llm_result.get("confidence", 0)
+        reasoning = llm_result.get("reasoning", "")
+
+        # Map confidence to decision using threshold
+        decision = "include" if confidence >= threshold else "exclude"
+
+        # Log interdisciplinary cases (high confidence, multiple research areas)
+        if decision == "include" and len(professor.research_areas) >= 3:
+            logger.info(
+                "Interdisciplinary professor included",
+                professor=professor.name,
+                research_areas=professor.research_areas,
+                confidence=confidence,
+            )
+
+        # Log edge cases (missing research areas but included)
+        if decision == "include" and not professor.research_areas:
+            logger.warning(
+                "Professor with missing research areas included by default",
+                professor=professor.name,
+                confidence=confidence,
+            )
+
+        return {"decision": decision, "confidence": confidence, "reasoning": reasoning}
+
+    except Exception as e:
+        logger.error(
+            "LLM filtering failed, using inclusive fallback",
+            professor=professor.name,
+            error=str(e),
+        )
+        # Inclusive fallback: include by default when LLM fails
+        return {
+            "decision": "include",
+            "confidence": 0,
+            "reasoning": f"LLM call failed ({str(e)[:50]}...) - included by default for human review",
+        }
+
+
+async def filter_professors(correlation_id: str) -> list[Professor]:
+    """Main orchestration function for professor filtering workflow.
+
+    Story 3.2: Task 4 - Batch Orchestration
+
+    Complete filtering workflow:
+    1. Load user profile from output/user_profile.md
+    2. Load system params for batch size and confidence threshold
+    3. Load professors from Story 3.1b checkpoints (phase-2-professors-batch-*.jsonl)
+    4. Filter each professor using LLM
+    5. Save ALL professors (relevant + filtered) to new checkpoints
+    6. Update progress tracking
+    7. Return complete list
+
+    Resumability: Uses checkpoint_manager.get_resume_point() to resume from last completed batch.
+
+    Args:
+        correlation_id: Correlation ID for logging
+
+    Returns:
+        List of ALL professors with is_relevant field updated
+    """
+    logger = get_logger(
+        correlation_id=correlation_id,
+        phase="professor_filtering",
+        component="professor_filter",
+    )
+    logger.info("Starting professor filtering workflow")
+
+    # Task 1: Load user profile
+    logger.info("Step 1: Loading user profile")
+    profile_dict = load_user_profile()
+
+    # Load system parameters
+    logger.info("Step 2: Loading system parameters")
+    system_params = SystemParams.load()
+    batch_size = system_params.batch_config.professor_discovery_batch_size
+
+    # Load checkpoint manager
+    checkpoint_manager = CheckpointManager()
+
+    # Load all professors from Story 3.1b checkpoints
+    logger.info("Step 3: Loading professors from checkpoints")
+    professor_batches = checkpoint_manager.load_batches("phase-2-professors")
+
+    # Flatten batches into single list
+    all_professors: list[Professor] = []
+    for batch_data in professor_batches:
+        # Convert dict to Professor model
+        if isinstance(batch_data, dict):
+            all_professors.append(Professor(**batch_data))
+        else:
+            all_professors.append(batch_data)
+
+    logger.info("Professors loaded", total_count=len(all_professors))
+
+    # Initialize progress tracker (Task 5)
+    tracker = ProgressTracker()
+    tracker.start_phase("Phase 2: Professor Filtering", total_items=len(all_professors))
+
+    # Process professors in batches
+    processed_count = 0
+    included_count = 0
+    excluded_count = 0
+    failed_count = 0
+
+    # Determine resume point
+    resume_batch = checkpoint_manager.get_resume_point("phase-2-filter")
+    total_batches = (len(all_professors) + batch_size - 1) // batch_size
+
+    logger.info(
+        "Starting batch processing",
+        total_batches=total_batches,
+        batch_size=batch_size,
+        resume_from_batch=resume_batch,
+    )
+
+    for batch_num in range(resume_batch, total_batches):
+        start_idx = batch_num * batch_size
+        end_idx = min(start_idx + batch_size, len(all_professors))
+        batch_professors = all_professors[start_idx:end_idx]
+
+        logger.info(
+            f"Processing batch {batch_num + 1}/{total_batches}",
+            batch_size=len(batch_professors),
+        )
+
+        # Update batch progress
+        tracker.update_batch(
+            batch_num=batch_num + 1,
+            total_batches=total_batches,
+            batch_desc=f"Professors {start_idx + 1}-{end_idx}",
+        )
+
+        # Filter each professor in batch
+        for professor in batch_professors:
+            try:
+                # Generate unique correlation ID for this professor
+                prof_correlation_id = f"{correlation_id}-{professor.id}"
+
+                # Call filtering function
+                filter_result = await filter_professor_single(
+                    professor, profile_dict, prof_correlation_id
+                )
+
+                # Update professor model fields
+                professor.is_relevant = filter_result["decision"] == "include"
+                professor.relevance_confidence = filter_result["confidence"]
+                professor.relevance_reasoning = filter_result["reasoning"]
+
+                # Add data quality flags
+                if filter_result["confidence"] == 0:
+                    professor.add_quality_flag("llm_filtering_failed")
+
+                # Count results
+                if professor.is_relevant:
+                    included_count += 1
+                else:
+                    excluded_count += 1
+
+            except Exception as e:
+                logger.error(
+                    "Failed to filter professor",
+                    professor=professor.name,
+                    error=str(e),
+                )
+                # Inclusive fallback
+                professor.is_relevant = True
+                professor.relevance_confidence = 0
+                professor.relevance_reasoning = f"Filter error: {str(e)[:100]}"
+                professor.add_quality_flag("llm_filtering_failed")
+                failed_count += 1
+                included_count += 1
+
+            processed_count += 1
+            tracker.update(completed=processed_count)
+
+        # Task 4.1: Save batch checkpoint
+        logger.info(
+            f"Saving batch {batch_num + 1} checkpoint",
+            batch_size=len(batch_professors),
+        )
+        checkpoint_manager.save_batch(
+            phase="phase-2-filter",
+            batch_id=batch_num + 1,
+            data=batch_professors,
+        )
+
+    # Complete progress tracking
+    tracker.complete_phase()
+
+    # Calculate match rate
+    match_rate = (included_count / len(all_professors) * 100) if all_professors else 0
+
+    logger.info(
+        "Professor filtering complete",
+        total_professors=len(all_professors),
+        included=included_count,
+        excluded=excluded_count,
+        failed=failed_count,
+        match_rate=f"{match_rate:.1f}%",
+    )
+
+    return all_professors
