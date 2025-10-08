@@ -2,14 +2,22 @@
 
 This test verifies that call_llm_with_retry() successfully integrates with
 the Claude Agent SDK for actual LLM calls.
+
+NOTE: These tests require Claude Code CLI authentication and are skipped in CI.
+Run locally with Claude Code signed in to test LLM integration.
 """
 
+import os
 import pytest
 from src.utils.llm_helpers import call_llm_with_retry
 
 
 @pytest.mark.asyncio
 @pytest.mark.integration
+@pytest.mark.skipif(
+    os.getenv("CI") == "true",
+    reason="Requires Claude Code CLI authentication - ClaudeSDKClient uses CLI auth, not ANTHROPIC_API_KEY"
+)
 async def test_call_llm_with_retry_basic():
     """Test that call_llm_with_retry() successfully calls Claude Agent SDK."""
 
@@ -30,6 +38,10 @@ async def test_call_llm_with_retry_basic():
 
 @pytest.mark.asyncio
 @pytest.mark.integration
+@pytest.mark.skipif(
+    os.getenv("CI") == "true",
+    reason="Requires Claude Code CLI authentication - ClaudeSDKClient uses CLI auth, not ANTHROPIC_API_KEY"
+)
 async def test_call_llm_with_retry_json_response():
     """Test that call_llm_with_retry() handles JSON responses correctly."""
 
