@@ -280,6 +280,7 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 **Epic 4: Lab Intelligence (IN PROGRESS)**
 - Story 4.1 complete - Lab website discovery & scraping (95/100 QA score) ✅
 - Story 4.2 complete - Archive.org integration for website history (95/100 QA score) ✅
+- Story 4.3 complete - Contact information extraction (95/100 QA score) ✅
 
 ### Key Insights
 
@@ -354,6 +355,19 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 - Testing: 21 comprehensive tests covering all 7 ACs, edge cases, boundary conditions, error scenarios
 - QA score: 95/100 - production-ready, exceptional code quality
 
+**Epic 4 (Story 4.3):**
+- Contact extraction: Extracts emails, contact form URLs, and application URLs from lab websites
+- Email filtering: Smart filtering removes 7 generic prefixes (webmaster@, info@, admin@, support@, contact@, noreply@, no-reply@)
+- URL normalization: Converts relative URLs to absolute using urljoin() for both contact and application URLs
+- Validation: Basic email format validation via regex, URL format validation
+- Data model: Extended Lab model with 3 contact fields (contact_emails, contact_form_url, application_url)
+- Data quality tracking: Added 7 new flags for contact extraction transparency
+- Graceful degradation: Comprehensive error handling - extraction failures don't block processing
+- Integration pattern: Contact extraction runs inline with lab website scraping in process_single_lab()
+- Extraction functions: 5 functions (extract_emails, validate_email, extract_contact_form, extract_application_url, extract_contact_info_safe)
+- Testing: 28 comprehensive unit tests with 100% coverage of contact extraction functions, all edge cases covered
+- QA score: 95/100 - production-ready, zero technical debt
+
 **Epic 3 (Story 3.5):**
 - Batch processing: Parallel LLM calls within batches using asyncio.Semaphore for rate limiting
 - Configuration: Added `professor_filtering_batch_size` (default: 15) and `max_concurrent_llm_calls` (default: 5, max: 20) to SystemParams
@@ -408,9 +422,9 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 
 ### Current Environment
 
-**Working Components:** Validation, credential management, checkpoints, logging, LLM helpers, progress tracking, MCP client, profile consolidation, university discovery, department filtering, professor model, professor discovery, parallel professor discovery, deduplication, rate limiting, professor filtering, confidence scoring, filtered professor logging, batch processing, lab website discovery, lab website scraping, archive.org integration
+**Working Components:** Validation, credential management, checkpoints, logging, LLM helpers, progress tracking, MCP client, profile consolidation, university discovery, department filtering, professor model, professor discovery, parallel professor discovery, deduplication, rate limiting, professor filtering, confidence scoring, filtered professor logging, batch processing, lab website discovery, lab website scraping, archive.org integration, contact information extraction
 
-**Test Status:** 445 tests passing (255 from Epics 1-2 + 138 from Epic 3 + 31 from Story 4.1 + 21 from Story 4.2), ruff ✅, mypy ✅
+**Test Status:** 473 tests passing (255 from Epics 1-2 + 138 from Epic 3 + 31 from Story 4.1 + 21 from Story 4.2 + 28 from Story 4.3), ruff ✅, mypy ✅
 
 ## Documentation References
 

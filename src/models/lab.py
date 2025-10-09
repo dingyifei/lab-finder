@@ -4,6 +4,7 @@ Lab Model
 Pydantic model for lab website data and metadata.
 Story 4.1: Task 2
 Story 4.2: Task 1 (Archive.org fields)
+Story 4.3: Task 1 (Contact fields)
 """
 
 import hashlib
@@ -13,7 +14,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
-# Data quality flag constants (Stories 4.1, 4.2)
+# Data quality flag constants (Stories 4.1, 4.2, 4.3)
 LAB_DATA_QUALITY_FLAGS = {
     # Story 4.1 flags
     "no_website",              # No lab website URL found
@@ -26,6 +27,14 @@ LAB_DATA_QUALITY_FLAGS = {
     # Story 4.2 flags (Archive.org)
     "no_archive_data",         # No snapshots found in Wayback Machine
     "archive_query_failed",    # Archive.org API query failed
+    # Story 4.3 flags (Contact extraction)
+    "no_contact_info",         # No contact information found at all
+    "no_email",                # No email addresses found
+    "no_contact_form",         # No contact form URL found
+    "no_application_url",      # No application URL found
+    "email_extraction_failed",      # Email extraction raised exception
+    "contact_form_extraction_failed",  # Contact form extraction raised exception
+    "application_url_extraction_failed",  # Application URL extraction raised exception
 }
 
 
@@ -68,6 +77,16 @@ class Lab(BaseModel):
     update_frequency: str = Field(
         default="unknown",
         description="Website update frequency (weekly/monthly/quarterly/yearly/stale/unknown)"
+    )
+    # Contact fields (Story 4.3)
+    contact_emails: list[str] = Field(
+        default_factory=list, description="Professor/lab email addresses"
+    )
+    contact_form_url: Optional[str] = Field(
+        None, description="Contact form URL if available"
+    )
+    application_url: Optional[str] = Field(
+        None, description="Prospective student/application URL"
     )
 
     @staticmethod

@@ -4,13 +4,14 @@ Lab Research Agent
 Discovers and scrapes lab websites for content and metadata.
 Story 4.1: Epic 4 (Lab Intelligence)
 Story 4.2: Archive.org integration
+Story 4.3: Contact information extraction
 """
 
 import json
 import re
 from datetime import datetime
 from typing import Optional, Any
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 
 from bs4 import BeautifulSoup
 from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
@@ -30,7 +31,7 @@ from src.models.professor import Professor
 from src.models.config import SystemParams
 from src.utils.logger import get_logger
 from src.utils.checkpoint_manager import CheckpointManager
-from src.agents.professor_filter import DomainRateLimiter
+from src.utils.rate_limiter import DomainRateLimiter
 
 
 # Archive.org rate limiter (Story 4.2: Task 3)
@@ -572,6 +573,164 @@ def extract_news_updates(html_content: str) -> list[str]:
     return news_items
 
 
+def extract_emails(text: str) -> list[str]:
+    """Extract and filter email addresses from text.
+
+    Args:
+        text: Text content to extract emails from
+
+    Returns:
+        List of unique, filtered email addresses (normalized to lowercase)
+
+    Story 4.3: Task 2
+    """
+    pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+    emails = re.findall(pattern, text)
+
+    # Normalize to lowercase for deduplication
+    emails = [e.lower() for e in emails]
+
+    # Filter generic emails
+    generic_prefixes = (
+        'webmaster@', 'info@', 'admin@', 'support@',
+        'contact@', 'noreply@', 'no-reply@'
+    )
+    filtered = [e for e in emails if not e.startswith(generic_prefixes)]
+
+    # Remove duplicates (already normalized)
+    return list(set(filtered))
+
+
+def validate_email(email: str) -> bool:
+    """Basic email format validation using regex.
+
+    Args:
+        email: Email address to validate
+
+    Returns:
+        True if email format is valid, False otherwise
+
+    Story 4.3: Task 2
+    """
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return bool(re.match(pattern, email))
+
+
+def extract_contact_form(html: str, base_url: str) -> Optional[str]:
+    """Extract contact form URL from HTML content.
+
+    Args:
+        html: Raw HTML content
+        base_url: Base URL for converting relative links
+
+    Returns:
+        Absolute contact form URL if found, None otherwise
+
+    Story 4.3: Task 3
+    """
+    contact_patterns = [
+        r'href=["\']([^"\']*contact[^"\']*)["\']',
+        r'href=["\']([^"\']*get-in-touch[^"\']*)["\']',
+        r'href=["\']([^"\']*reach-out[^"\']*)["\']',
+        r'href=["\']([^"\']*join[^"\']*)["\']',
+    ]
+
+    for pattern in contact_patterns:
+        match = re.search(pattern, html, re.IGNORECASE)
+        if match:
+            url = match.group(1)
+            # Convert relative to absolute URL
+            if not url.startswith(('http://', 'https://')):
+                url = urljoin(base_url, url)
+            return url
+    return None
+
+
+def extract_application_url(html: str, base_url: str) -> Optional[str]:
+    """Extract application/prospective student URL from HTML.
+
+    Args:
+        html: Raw HTML content
+        base_url: Base URL for converting relative links
+
+    Returns:
+        Absolute application URL if found, None otherwise
+
+    Story 4.3: Task 4
+    """
+    application_keywords = [
+        'prospective', 'apply', 'join', 'positions',
+        'openings', 'opportunities', 'PhD application'
+    ]
+
+    for keyword in application_keywords:
+        pattern = f'href=["\']([^"\']*{keyword}[^"\']*)["\']'
+        match = re.search(pattern, html, re.IGNORECASE)
+        if match:
+            url = match.group(1)
+            # Convert relative to absolute URL
+            if not url.startswith(('http://', 'https://')):
+                url = urljoin(base_url, url)
+            return url
+    return None
+
+
+def extract_contact_info_safe(website_content: str, lab_url: str) -> dict[str, Any]:
+    """Safely extract contact info with error handling.
+
+    Args:
+        website_content: Full text content from lab website
+        lab_url: Lab URL for relative→absolute conversion
+
+    Returns:
+        Dictionary with:
+        - contact_emails: list[str]
+        - contact_form_url: Optional[str]
+        - application_url: Optional[str]
+        - data_quality_flags: list[str]
+
+    Story 4.3: Tasks 2-5
+    """
+    data_quality_flags = []
+
+    try:
+        emails = extract_emails(website_content)
+    except Exception:
+        emails = []
+        data_quality_flags.append("email_extraction_failed")
+
+    try:
+        contact_form = extract_contact_form(website_content, lab_url)
+    except Exception:
+        contact_form = None
+        data_quality_flags.append("contact_form_extraction_failed")
+
+    try:
+        application_url = extract_application_url(website_content, lab_url)
+    except Exception:
+        application_url = None
+        data_quality_flags.append("application_url_extraction_failed")
+
+    # Flag if no contact info found at all
+    if not emails and not contact_form and not application_url:
+        data_quality_flags.append("no_contact_info")
+    else:
+        # Flag specific missing fields
+        if not emails:
+            data_quality_flags.append("no_email")
+        if not contact_form:
+            data_quality_flags.append("no_contact_form")
+        if not application_url:
+            data_quality_flags.append("no_application_url")
+
+    return {
+        "contact_emails": emails,
+        "contact_form_url": contact_form,
+        "application_url": application_url,
+        "data_quality_flags": data_quality_flags,
+    }
+
+
 async def process_single_lab(
     professor: Professor, correlation_id: str
 ) -> Lab:
@@ -631,6 +790,9 @@ async def process_single_lab(
             last_wayback_snapshot=None,
             wayback_snapshots=[],
             update_frequency="unknown",
+            contact_emails=[],
+            contact_form_url=None,
+            application_url=None,
         )
 
     # Scrape lab website
@@ -642,6 +804,22 @@ async def process_single_lab(
             "Lab website scraped successfully",
             professor_name=professor.name,
             lab_url=lab_url
+        )
+
+        # Story 4.3: Extract contact information
+        contact_info = extract_contact_info_safe(
+            website_content=scraped_data["website_content"],
+            lab_url=lab_url
+        )
+        data_quality_flags.extend(contact_info["data_quality_flags"])
+
+        logger.info(
+            "Contact extraction complete",
+            professor_name=professor.name,
+            lab_url=lab_url,
+            emails_found=len(contact_info["contact_emails"]),
+            has_contact_form=bool(contact_info["contact_form_url"]),
+            has_application_url=bool(contact_info["application_url"])
         )
 
         lab = Lab(
@@ -660,6 +838,10 @@ async def process_single_lab(
             last_wayback_snapshot=None,
             wayback_snapshots=[],
             update_frequency="unknown",
+            # Story 4.3: Contact fields
+            contact_emails=contact_info["contact_emails"],
+            contact_form_url=contact_info["contact_form_url"],
+            application_url=contact_info["application_url"],
         )
 
         # Story 4.2: Enrich with Archive.org data
@@ -691,6 +873,9 @@ async def process_single_lab(
             last_wayback_snapshot=None,
             wayback_snapshots=[],
             update_frequency="unknown",
+            contact_emails=[],
+            contact_form_url=None,
+            application_url=None,
         )
 
         # Story 4.2: Try to enrich with Archive.org data even if scraping failed
@@ -1038,6 +1223,9 @@ async def discover_and_scrape_labs_batch() -> list[Lab]:
                     last_wayback_snapshot=None,
                     wayback_snapshots=[],
                     update_frequency="unknown",
+                    contact_emails=[],
+                    contact_form_url=None,
+                    application_url=None,
                 )
                 batch_labs.append(lab)
                 processed_count += 1
