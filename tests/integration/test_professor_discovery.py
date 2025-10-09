@@ -4,18 +4,17 @@ import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from src.agents.professor_filter import (
-    DomainRateLimiter,
-    deduplicate_professors,
+from src.agents.professor_discovery import (
     discover_and_save_professors,
     discover_professors_for_department,
     discover_professors_parallel,
     discover_with_playwright_fallback,
     generate_professor_id,
     load_relevant_departments,
-    merge_professor_records,
     parse_professor_data,
 )
+from src.utils.deduplication import deduplicate_professors, merge_professor_records
+from src.utils.rate_limiter import DomainRateLimiter
 from src.models.department import Department
 from src.models.professor import Professor
 
@@ -122,7 +121,7 @@ async def test_discover_professors_with_mock_sdk(mocker):
 
     # Patch ClaudeSDKClient class
     mocker.patch(
-        "src.agents.professor_filter.ClaudeSDKClient",
+        "src.agents.professor_discovery.ClaudeSDKClient",
         return_value=mock_client,
     )
 
@@ -166,13 +165,13 @@ async def test_discover_professors_sdk_failure_triggers_playwright(mocker):
     mock_client = AsyncMock()
     mock_client.__aenter__ = AsyncMock(side_effect=Exception("WebFetch failed"))
     mocker.patch(
-        "src.agents.professor_filter.ClaudeSDKClient",
+        "src.agents.professor_discovery.ClaudeSDKClient",
         return_value=mock_client,
     )
 
     # Mock Playwright fallback to return empty list
     mocker.patch(
-        "src.agents.professor_filter.discover_with_playwright_fallback",
+        "src.agents.professor_discovery.discover_with_playwright_fallback",
         return_value=[],
     )
 
@@ -246,7 +245,7 @@ def test_load_relevant_departments(mocker):
     ]
 
     mocker.patch(
-        "src.agents.professor_filter.CheckpointManager",
+        "src.agents.professor_discovery.CheckpointManager",
         return_value=mock_checkpoint_manager,
     )
 
@@ -301,7 +300,7 @@ def test_load_relevant_departments_filters_invalid(mocker):
     ]
 
     mocker.patch(
-        "src.agents.professor_filter.CheckpointManager",
+        "src.agents.professor_discovery.CheckpointManager",
         return_value=mock_checkpoint_manager,
     )
 
@@ -336,7 +335,7 @@ async def test_parallel_discovery_with_multiple_departments(mocker):
         ]
 
     mocker.patch(
-        "src.agents.professor_filter.discover_professors_for_department",
+        "src.agents.professor_discovery.discover_professors_for_department",
         side_effect=mock_discover,
     )
 
@@ -375,7 +374,7 @@ async def test_semaphore_limits_concurrent_execution(mocker):
         return []
 
     mocker.patch(
-        "src.agents.professor_filter.discover_professors_for_department",
+        "src.agents.professor_discovery.discover_professors_for_department",
         side_effect=mock_discover_with_tracking,
     )
 
@@ -397,13 +396,13 @@ async def test_progress_tracking_updates(mocker):
     """Test progress tracking updates."""
     mock_tracker_instance = MagicMock()
     mocker.patch(
-        "src.utils.progress_tracker.ProgressTracker",
+        "src.agents.professor_discovery.ProgressTracker",
         return_value=mock_tracker_instance,
     )
 
     # Mock discover to return empty lists
     mocker.patch(
-        "src.agents.professor_filter.discover_professors_for_department",
+        "src.agents.professor_discovery.discover_professors_for_department",
         return_value=[],
     )
 
@@ -440,7 +439,7 @@ async def test_failed_department_doesnt_stop_processing(mocker):
         ]
 
     mocker.patch(
-        "src.agents.professor_filter.discover_professors_for_department",
+        "src.agents.professor_discovery.discover_professors_for_department",
         side_effect=mock_discover_with_failure,
     )
 
@@ -458,7 +457,7 @@ async def test_failed_department_doesnt_stop_processing(mocker):
 @pytest.mark.asyncio
 async def test_empty_department_list(mocker):
     """Test edge case: Empty department list."""
-    mocker.patch("src.agents.professor_filter.discover_professors_for_department")
+    mocker.patch("src.agents.professor_discovery.discover_professors_for_department")
 
     professors = await discover_professors_parallel([], max_concurrent=3)
 
@@ -475,7 +474,7 @@ async def test_all_departments_fail(mocker):
         raise Exception("All departments failed")
 
     mocker.patch(
-        "src.agents.professor_filter.discover_professors_for_department",
+        "src.agents.professor_discovery.discover_professors_for_department",
         side_effect=mock_discover_always_fail,
     )
 
@@ -507,7 +506,7 @@ async def test_single_department(mocker):
         ]
 
     mocker.patch(
-        "src.agents.professor_filter.discover_professors_for_department",
+        "src.agents.professor_discovery.discover_professors_for_department",
         side_effect=mock_discover,
     )
 
@@ -532,7 +531,7 @@ async def test_deduplication_fuzzy_matching(mocker):
     """
     # Mock llm_helpers.match_names to return dict with correct lowercase "yes"
     mocker.patch(
-        "src.agents.professor_filter.match_names",
+        "src.utils.deduplication.match_names",
         return_value={"decision": "yes", "confidence": 95, "reasoning": "Same person"},
     )
 
@@ -624,7 +623,7 @@ async def test_exact_duplicate_skips_llm(mocker):
     Story 3.1c: Test #4
     """
     # Mock match_names - should NOT be called for exact duplicates
-    mock_match = mocker.patch("src.agents.professor_filter.match_names")
+    mock_match = mocker.patch("src.utils.deduplication.match_names")
 
     professors = [
         Professor(
@@ -695,7 +694,7 @@ async def test_high_confidence_no_match_not_treated_as_duplicate(mocker):
     """
     # Mock: High confidence that these are DIFFERENT people
     mocker.patch(
-        "src.agents.professor_filter.match_names",
+        "src.utils.deduplication.match_names",
         return_value={
             "decision": "no",
             "confidence": 95,
@@ -755,20 +754,20 @@ async def test_discover_and_save_professors_orchestrator(mocker, tmp_path):
         ),
     ]
     mocker.patch(
-        "src.agents.professor_filter.discover_professors_parallel",
+        "src.agents.professor_discovery.discover_professors_parallel",
         return_value=mock_professors,
     )
 
     # Mock deduplicate_professors
     mocker.patch(
-        "src.agents.professor_filter.deduplicate_professors",
+        "src.utils.deduplication.deduplicate_professors",
         return_value=mock_professors,
     )
 
     # Mock CheckpointManager
     mock_checkpoint_manager = MagicMock()
     mocker.patch(
-        "src.agents.professor_filter.CheckpointManager",
+        "src.agents.professor_discovery.CheckpointManager",
         return_value=mock_checkpoint_manager,
     )
 

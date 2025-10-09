@@ -10,7 +10,7 @@ Tests reporting-specific functions:
 
 import json
 import pytest
-from src.agents.professor_filter import (
+from src.agents.professor_reporting import (
     log_filter_decision,
     calculate_filter_statistics,
     generate_filter_report,
@@ -103,7 +103,7 @@ def test_log_filter_decision(sample_professor_included, mocker):
     Story 3.4: Task 1
     """
     # Arrange
-    mock_logger = mocker.patch("src.agents.professor_filter.get_logger")
+    mock_logger = mocker.patch("src.agents.professor_reporting.get_logger")
     mock_logger_instance = mock_logger.return_value
 
     # Act
@@ -113,7 +113,7 @@ def test_log_filter_decision(sample_professor_included, mocker):
     mock_logger.assert_called_once_with(
         correlation_id="test-corr-id",
         phase="professor_filtering",
-        component="professor_filter",
+        component="professor_reporting",
     )
 
     # Verify logging call with expected fields
@@ -138,7 +138,7 @@ async def test_generate_filter_report(tmp_path, sample_professors_mixed, mocker)
     Story 3.4: Task 2
     """
     # Arrange
-    mocker.patch("src.agents.professor_filter.get_logger")
+    mocker.patch("src.agents.professor_reporting.get_logger")
 
     # Act
     await generate_filter_report(
@@ -302,7 +302,7 @@ async def test_apply_manual_additions(sample_professor_excluded, tmp_path, mocke
     }
 
     # Mock checkpoint manager
-    mocker.patch("src.agents.professor_filter.CheckpointManager")
+    mocker.patch("src.agents.professor_reporting.CheckpointManager")
 
     # Act
     result = await apply_manual_additions(professors, additions, "test-corr-id")
@@ -562,8 +562,8 @@ async def test_apply_manual_additions_no_match(sample_professor_included, mocker
     }
 
     # Mock logger
-    mocker.patch("src.agents.professor_filter.get_logger")
-    mocker.patch("src.agents.professor_filter.CheckpointManager")
+    mocker.patch("src.agents.professor_reporting.get_logger")
+    mocker.patch("src.agents.professor_reporting.CheckpointManager")
 
     # Act
     result = await apply_manual_additions(professors, additions, "test-corr-id")

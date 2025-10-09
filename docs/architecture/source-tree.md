@@ -19,9 +19,9 @@ lab-finder/
 │   ├── models/                      # Pydantic data models
 │   │   ├── __init__.py
 │   │   ├── config.py                # SystemParams, BatchConfig models
-│   │   ├── user_profile.py         # UserProfile model
-│   │   ├── department.py           # Department model
-│   │   ├── professor.py            # Professor model
+│   │   ├── profile.py               # ConsolidatedProfile model
+│   │   ├── department.py            # Department model
+│   │   ├── professor.py             # Professor model
 │   │   ├── lab.py                  # Lab model
 │   │   ├── lab_member.py           # LabMember model
 │   │   ├── publication.py          # Publication model
@@ -32,7 +32,9 @@ lab-finder/
 │   │   ├── __init__.py
 │   │   ├── validator.py            # Configuration Validator
 │   │   ├── university_discovery.py # University Structure Discovery Agent
-│   │   ├── professor_filter.py     # Professor Discovery & Filter Agent
+│   │   ├── professor_discovery.py  # Professor Discovery Agent (Stories 3.1a-c)
+│   │   ├── professor_filtering.py  # Professor Filtering Agent (Stories 3.2, 3.5)
+│   │   ├── professor_reporting.py  # Professor Reporting Agent (Story 3.4)
 │   │   ├── lab_intelligence.py     # Lab Website Intelligence Agent
 │   │   ├── publication_retrieval.py # Publication Retrieval Agent
 │   │   ├── member_inference.py     # Lab Member Inference Agent
@@ -48,7 +50,11 @@ lab-finder/
 │   │   ├── mcp_client.py           # MCP server client helpers
 │   │   ├── web_scraper.py          # Web scraping helpers (built-in + Playwright)
 │   │   ├── llm_helpers.py          # LLM prompt templates and wrappers
-│   │   └── logger.py               # Structlog configuration
+│   │   ├── logger.py               # Structlog configuration
+│   │   ├── rate_limiter.py         # Per-domain rate limiting (Story 3.1c)
+│   │   ├── deduplication.py        # Professor deduplication logic (Story 3.1c)
+│   │   ├── confidence.py           # Confidence scoring utilities (Story 3.3)
+│   │   └── credential_manager.py   # Secure credential management
 │   │
 │   └── schemas/                     # JSON schemas for validation
 │       ├── user-profile.schema.json

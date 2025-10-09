@@ -20,7 +20,7 @@ import json
 import pytest
 from unittest.mock import Mock, patch
 
-from src.agents.professor_filter import (
+from src.utils.confidence import (
     validate_confidence_score,
     calculate_confidence_stats,
     generate_borderline_report,
@@ -244,7 +244,7 @@ def mock_professors():
     ]
 
 
-@patch("src.agents.professor_filter.SystemParams.load")
+@patch("src.agents.professor_filtering.SystemParams.load")
 def test_generate_borderline_report_creates_file(
     mock_load, mock_professors, tmp_path, monkeypatch
 ):
@@ -263,7 +263,7 @@ def test_generate_borderline_report_creates_file(
     assert report_path.exists()
 
 
-@patch("src.agents.professor_filter.SystemParams.load")
+@patch("src.agents.professor_filtering.SystemParams.load")
 def test_generate_borderline_report_content(
     mock_load, mock_professors, tmp_path, monkeypatch
 ):
@@ -293,7 +293,7 @@ def test_generate_borderline_report_content(
     assert "1 excluded (low confidence)" in content
 
 
-@patch("src.agents.professor_filter.SystemParams.load")
+@patch("src.agents.professor_filtering.SystemParams.load")
 def test_generate_borderline_report_no_borderline_cases(
     mock_load, tmp_path, monkeypatch
 ):
@@ -355,7 +355,7 @@ def test_get_override_recommendation_tangential():
 # ============================================================================
 
 
-@patch("src.agents.professor_filter.SystemParams.load")
+@patch("src.agents.professor_filtering.SystemParams.load")
 def test_calculate_confidence_stats_distribution(mock_load, mock_professors):
     """Test confidence stats calculate correct distribution."""
     # Mock SystemParams
@@ -378,7 +378,7 @@ def test_calculate_confidence_stats_distribution(mock_load, mock_professors):
     assert stats["excluded"]["low"] == 1  # prof-3: 55
 
 
-@patch("src.agents.professor_filter.SystemParams.load")
+@patch("src.agents.professor_filtering.SystemParams.load")
 def test_calculate_confidence_stats_quality_assessment(mock_load, mock_professors):
     """Test confidence stats provide quality assessment."""
     # Mock SystemParams
@@ -399,7 +399,7 @@ def test_calculate_confidence_stats_quality_assessment(mock_load, mock_professor
     assert analysis["low_confidence_percentage"] == 66.7
 
 
-@patch("src.agents.professor_filter.SystemParams.load")
+@patch("src.agents.professor_filtering.SystemParams.load")
 def test_calculate_confidence_stats_high_low_confidence_warning(mock_load):
     """Test warning logged when >30% low confidence."""
     # Mock SystemParams

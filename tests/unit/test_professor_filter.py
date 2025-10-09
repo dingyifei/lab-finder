@@ -13,7 +13,7 @@ Tests cover:
 import pytest
 from unittest.mock import Mock, patch
 
-from src.agents.professor_filter import (
+from src.agents.professor_filtering import (
     load_user_profile,
     format_profile_for_llm,
     filter_professor_single,
@@ -46,7 +46,7 @@ Machine learning and artificial intelligence with focus on deep learning.
         )
 
         # Act
-        with patch("src.agents.professor_filter.Path") as mock_path:
+        with patch("src.agents.professor_filtering.Path") as mock_path:
             mock_path.return_value = profile_path
             result = load_user_profile()
 
@@ -63,7 +63,7 @@ Machine learning and artificial intelligence with focus on deep learning.
         non_existent_path = tmp_path / "nonexistent" / "user_profile.md"
 
         # Act & Assert
-        with patch("src.agents.professor_filter.Path") as mock_path:
+        with patch("src.agents.professor_filtering.Path") as mock_path:
             mock_path.return_value = non_existent_path
             with pytest.raises(
                 FileNotFoundError, match="User profile must be generated"
@@ -85,7 +85,7 @@ Machine learning and artificial intelligence with focus on deep learning.
         )
 
         # Act & Assert
-        with patch("src.agents.professor_filter.Path") as mock_path:
+        with patch("src.agents.professor_filtering.Path") as mock_path:
             mock_path.return_value = profile_path
             with pytest.raises(
                 ValueError, match="Cannot filter professors without research interests"
@@ -109,7 +109,7 @@ Machine learning research.
         )
 
         # Act
-        with patch("src.agents.professor_filter.Path") as mock_path:
+        with patch("src.agents.professor_filtering.Path") as mock_path:
             mock_path.return_value = profile_path
             result = load_user_profile()
 
@@ -143,14 +143,14 @@ class TestFilterProfessorSingle:
     async def test_filter_includes_relevant_professor(self, mocker):
         """Test 1: Inclusive filtering - high confidence includes professor."""
         # Arrange
-        mock_llm = mocker.patch("src.agents.professor_filter.filter_professor_research")
+        mock_llm = mocker.patch("src.agents.professor_filtering.filter_professor_research")
         mock_llm.return_value = {
             "confidence": 85,
             "reasoning": "Strong overlap in ML research",
         }
 
         mock_system_params = mocker.patch(
-            "src.agents.professor_filter.SystemParams.load"
+            "src.agents.professor_filtering.SystemParams.load"
         )
         mock_params = Mock()
         mock_params.confidence_thresholds.professor_filter = 70.0
@@ -184,14 +184,14 @@ class TestFilterProfessorSingle:
     async def test_filter_excludes_unrelated_professor(self, mocker):
         """Test 3: Exclusion - low confidence excludes professor."""
         # Arrange
-        mock_llm = mocker.patch("src.agents.professor_filter.filter_professor_research")
+        mock_llm = mocker.patch("src.agents.professor_filtering.filter_professor_research")
         mock_llm.return_value = {
             "confidence": 15,
             "reasoning": "No overlap - English literature vs ML",
         }
 
         mock_system_params = mocker.patch(
-            "src.agents.professor_filter.SystemParams.load"
+            "src.agents.professor_filtering.SystemParams.load"
         )
         mock_params = Mock()
         mock_params.confidence_thresholds.professor_filter = 70.0
@@ -223,14 +223,14 @@ class TestFilterProfessorSingle:
     async def test_filter_interdisciplinary_professor(self, mocker):
         """Test 4: Interdisciplinary - multiple research areas with overlap."""
         # Arrange
-        mock_llm = mocker.patch("src.agents.professor_filter.filter_professor_research")
+        mock_llm = mocker.patch("src.agents.professor_filtering.filter_professor_research")
         mock_llm.return_value = {
             "confidence": 78,
             "reasoning": "Computational biology overlaps with ML",
         }
 
         mock_system_params = mocker.patch(
-            "src.agents.professor_filter.SystemParams.load"
+            "src.agents.professor_filtering.SystemParams.load"
         )
         mock_params = Mock()
         mock_params.confidence_thresholds.professor_filter = 70.0
@@ -262,14 +262,14 @@ class TestFilterProfessorSingle:
     async def test_filter_missing_research_areas(self, mocker):
         """Test 5: Edge case - professor with no research areas listed."""
         # Arrange
-        mock_llm = mocker.patch("src.agents.professor_filter.filter_professor_research")
+        mock_llm = mocker.patch("src.agents.professor_filtering.filter_professor_research")
         mock_llm.return_value = {
             "confidence": 50,
             "reasoning": "No research areas specified",
         }
 
         mock_system_params = mocker.patch(
-            "src.agents.professor_filter.SystemParams.load"
+            "src.agents.professor_filtering.SystemParams.load"
         )
         mock_params = Mock()
         mock_params.confidence_thresholds.professor_filter = 70.0
@@ -305,11 +305,11 @@ class TestFilterProfessorSingle:
     async def test_filter_llm_failure_fallback(self, mocker):
         """Test LLM failure handling - inclusive fallback."""
         # Arrange
-        mock_llm = mocker.patch("src.agents.professor_filter.filter_professor_research")
+        mock_llm = mocker.patch("src.agents.professor_filtering.filter_professor_research")
         mock_llm.side_effect = Exception("LLM service unavailable")
 
         mock_system_params = mocker.patch(
-            "src.agents.professor_filter.SystemParams.load"
+            "src.agents.professor_filtering.SystemParams.load"
         )
         mock_params = Mock()
         mock_params.confidence_thresholds.professor_filter = 70.0
@@ -342,14 +342,14 @@ class TestFilterProfessorSingle:
     async def test_filter_emerging_field(self, mocker):
         """Test 5: Edge case - emerging field with conceptual overlap."""
         # Arrange
-        mock_llm = mocker.patch("src.agents.professor_filter.filter_professor_research")
+        mock_llm = mocker.patch("src.agents.professor_filtering.filter_professor_research")
         mock_llm.return_value = {
             "confidence": 72,
             "reasoning": "Quantum ML is emerging field related to ML",
         }
 
         mock_system_params = mocker.patch(
-            "src.agents.professor_filter.SystemParams.load"
+            "src.agents.professor_filtering.SystemParams.load"
         )
         mock_params = Mock()
         mock_params.confidence_thresholds.professor_filter = 70.0
@@ -387,7 +387,7 @@ class TestFilterProfessors:
         """Test 6: Batch processing and checkpoint saving."""
         # Arrange - Mock user profile loading
         mock_load_profile = mocker.patch(
-            "src.agents.professor_filter.load_user_profile"
+            "src.agents.professor_filtering.load_user_profile"
         )
         mock_load_profile.return_value = {
             "research_interests": "Machine Learning",
@@ -396,7 +396,7 @@ class TestFilterProfessors:
 
         # Mock system params
         mock_system_params = mocker.patch(
-            "src.agents.professor_filter.SystemParams.load"
+            "src.agents.professor_filtering.SystemParams.load"
         )
         mock_params = Mock()
         mock_params.batch_config.professor_filtering_batch_size = 2
@@ -407,7 +407,7 @@ class TestFilterProfessors:
         mock_system_params.return_value = mock_params
 
         # Mock checkpoint manager
-        mock_checkpoint = mocker.patch("src.agents.professor_filter.CheckpointManager")
+        mock_checkpoint = mocker.patch("src.agents.professor_filtering.CheckpointManager")
         mock_checkpoint_instance = Mock()
         mock_checkpoint.return_value = mock_checkpoint_instance
 
@@ -439,21 +439,21 @@ class TestFilterProfessors:
         mock_checkpoint_instance.get_resume_point.return_value = 0
 
         # Mock LLM responses
-        mock_llm = mocker.patch("src.agents.professor_filter.filter_professor_research")
+        mock_llm = mocker.patch("src.agents.professor_filtering.filter_professor_research")
         mock_llm.side_effect = [
             {"confidence": 85, "reasoning": "Strong ML match"},
             {"confidence": 15, "reasoning": "No overlap"},
         ]
 
         # Mock progress tracker
-        mock_tracker = mocker.patch("src.agents.professor_filter.ProgressTracker")
+        mock_tracker = mocker.patch("src.agents.professor_filtering.ProgressTracker")
         mock_tracker_instance = Mock()
         mock_tracker.return_value = mock_tracker_instance
 
         # Mock additional Story 3.3/3.4 functions
-        mocker.patch("src.agents.professor_filter.apply_manual_overrides", return_value=0)
+        mocker.patch("src.utils.confidence.apply_manual_overrides", return_value=0)
         mocker.patch(
-            "src.agents.professor_filter.calculate_confidence_stats",
+            "src.utils.confidence.calculate_confidence_stats",
             return_value={
                 "total_professors": 2,
                 "included": {"high": 1, "medium": 0, "low": 0},
@@ -461,7 +461,7 @@ class TestFilterProfessors:
                 "distribution_analysis": {"quality_assessment": "Good"},
             },
         )
-        mocker.patch("src.agents.professor_filter.save_confidence_stats_report")
+        mocker.patch("src.utils.confidence.save_confidence_stats_report")
 
         # Act
         result = await filter_professors("test-correlation-id")
@@ -484,7 +484,7 @@ class TestFilterProfessors:
         """Test 7: Confidence score assignment and thresholding."""
         # Arrange
         mock_load_profile = mocker.patch(
-            "src.agents.professor_filter.load_user_profile"
+            "src.agents.professor_filtering.load_user_profile"
         )
         mock_load_profile.return_value = {
             "research_interests": "Machine Learning",
@@ -492,7 +492,7 @@ class TestFilterProfessors:
         }
 
         mock_system_params = mocker.patch(
-            "src.agents.professor_filter.SystemParams.load"
+            "src.agents.professor_filtering.SystemParams.load"
         )
         mock_params = Mock()
         mock_params.batch_config.professor_filtering_batch_size = 10
@@ -502,7 +502,7 @@ class TestFilterProfessors:
         mock_params.filtering_config.high_confidence_threshold = 90
         mock_system_params.return_value = mock_params
 
-        mock_checkpoint = mocker.patch("src.agents.professor_filter.CheckpointManager")
+        mock_checkpoint = mocker.patch("src.agents.professor_filtering.CheckpointManager")
         mock_checkpoint_instance = Mock()
         mock_checkpoint.return_value = mock_checkpoint_instance
 
@@ -522,10 +522,10 @@ class TestFilterProfessors:
         mock_checkpoint_instance.get_resume_point.return_value = 0
 
         # Mock LLM with threshold-boundary confidence
-        mock_llm = mocker.patch("src.agents.professor_filter.filter_professor_research")
+        mock_llm = mocker.patch("src.agents.professor_filtering.filter_professor_research")
         mock_llm.return_value = {"confidence": 70, "reasoning": "Exact threshold match"}
 
-        mocker.patch("src.agents.professor_filter.ProgressTracker")
+        mocker.patch("src.agents.professor_filtering.ProgressTracker")
 
         # Act
         result = await filter_professors("test-correlation-id")
@@ -539,7 +539,7 @@ class TestFilterProfessors:
         """Test edge case: empty professor list."""
         # Arrange
         mock_load_profile = mocker.patch(
-            "src.agents.professor_filter.load_user_profile"
+            "src.agents.professor_filtering.load_user_profile"
         )
         mock_load_profile.return_value = {
             "research_interests": "Machine Learning",
@@ -547,20 +547,20 @@ class TestFilterProfessors:
         }
 
         mock_system_params = mocker.patch(
-            "src.agents.professor_filter.SystemParams.load"
+            "src.agents.professor_filtering.SystemParams.load"
         )
         mock_params = Mock()
         mock_params.batch_config.professor_filtering_batch_size = 10
         mock_params.rate_limiting.max_concurrent_llm_calls = 3
         mock_system_params.return_value = mock_params
 
-        mock_checkpoint = mocker.patch("src.agents.professor_filter.CheckpointManager")
+        mock_checkpoint = mocker.patch("src.agents.professor_filtering.CheckpointManager")
         mock_checkpoint_instance = Mock()
         mock_checkpoint.return_value = mock_checkpoint_instance
         mock_checkpoint_instance.load_batches.return_value = []
         mock_checkpoint_instance.get_resume_point.return_value = 0
 
-        mocker.patch("src.agents.professor_filter.ProgressTracker")
+        mocker.patch("src.agents.professor_filtering.ProgressTracker")
 
         # Act
         result = await filter_professors("test-correlation-id")
@@ -572,7 +572,7 @@ class TestFilterProfessors:
         """Test that data quality flags are added correctly."""
         # Arrange
         mock_load_profile = mocker.patch(
-            "src.agents.professor_filter.load_user_profile"
+            "src.agents.professor_filtering.load_user_profile"
         )
         mock_load_profile.return_value = {
             "research_interests": "Machine Learning",
@@ -580,7 +580,7 @@ class TestFilterProfessors:
         }
 
         mock_system_params = mocker.patch(
-            "src.agents.professor_filter.SystemParams.load"
+            "src.agents.professor_filtering.SystemParams.load"
         )
         mock_params = Mock()
         mock_params.batch_config.professor_filtering_batch_size = 10
@@ -590,7 +590,7 @@ class TestFilterProfessors:
         mock_params.filtering_config.high_confidence_threshold = 90
         mock_system_params.return_value = mock_params
 
-        mock_checkpoint = mocker.patch("src.agents.professor_filter.CheckpointManager")
+        mock_checkpoint = mocker.patch("src.agents.professor_filtering.CheckpointManager")
         mock_checkpoint_instance = Mock()
         mock_checkpoint.return_value = mock_checkpoint_instance
 
@@ -609,10 +609,10 @@ class TestFilterProfessors:
         mock_checkpoint_instance.get_resume_point.return_value = 0
 
         # Mock LLM failure (confidence = 0)
-        mock_llm = mocker.patch("src.agents.professor_filter.filter_professor_research")
+        mock_llm = mocker.patch("src.agents.professor_filtering.filter_professor_research")
         mock_llm.side_effect = Exception("LLM failed")
 
-        mocker.patch("src.agents.professor_filter.ProgressTracker")
+        mocker.patch("src.agents.professor_filtering.ProgressTracker")
 
         # Act
         result = await filter_professors("test-correlation-id")

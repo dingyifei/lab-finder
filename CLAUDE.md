@@ -88,6 +88,48 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 **Source Tree:** See `docs/architecture/source-tree.md`
 **Tech Stack:** See `docs/architecture/tech-stack.md` (Python 3.11.7, Claude Agent SDK, Playwright, MCP)
 
+## Professor Module Import Patterns
+
+After refactoring (2025-10-09), professor-related functionality is organized across multiple modules:
+
+### Discovery & Parallel Processing
+```python
+from src.agents.professor_discovery import (
+    discover_professors_for_department,
+    discover_professors_parallel,
+    discover_and_save_professors,
+)
+```
+
+### Filtering & Batch Processing
+```python
+from src.agents.professor_filtering import (
+    filter_professor_single,
+    filter_professors,
+    load_user_profile,
+)
+```
+
+### Reporting & Transparency
+```python
+from src.agents.professor_reporting import (
+    generate_filter_report,
+    log_filter_decision,
+    calculate_filter_statistics,
+)
+```
+
+### Utilities
+```python
+from src.utils.rate_limiter import DomainRateLimiter
+from src.utils.deduplication import deduplicate_professors
+from src.utils.confidence import (
+    validate_confidence_score,
+    calculate_confidence_stats,
+    generate_borderline_report,
+)
+```
+
 ## Critical Coding Standards
 
 **Mandatory Rules (Full list:** `docs/architecture/coding-standards.md`**)**
