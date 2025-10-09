@@ -55,7 +55,7 @@ class RateLimiting(BaseModel):
         default=5,
         gt=0,
         le=20,
-        description="Maximum concurrent LLM API calls within batch processing"
+        description="Maximum concurrent LLM API calls within batch processing",
     )
 
 

@@ -76,7 +76,14 @@
       "Bash(venvScriptspython.exe -m pytest tests/unit/test_batch_processing.py -v --tb=short)",
       "Bash(python:*)",
       "Bash(cat:*)",
-      "Bash(CI=true venv/Scripts/python.exe -m pytest tests/integration/test_llm_integration.py -v)"
+      "Bash(CI=true venv/Scripts/python.exe -m pytest tests/integration/test_llm_integration.py -v)",
+      "Bash(venv\\Scripts\\ruff.exe check:*)",
+      "Bash(venvScriptspython.exe -m pytest tests/integration/test_professor_discovery.py::test_deduplication_fuzzy_matching tests/integration/test_professor_discovery.py::test_rate_limiting_delays_requests tests/integration/test_professor_discovery.py::test_save_professors_checkpoint tests/integration/test_professor_discovery.py::test_exact_duplicate_skips_llm tests/integration/test_professor_discovery.py::test_merge_professor_records tests/integration/test_professor_discovery.py::test_high_confidence_no_match_not_treated_as_duplicate tests/integration/test_professor_discovery.py::test_discover_and_save_professors_orchestrator -v --tb=short)",
+      "Bash(if [ -d \"tests/unit\" ])",
+      "Bash(then ls tests/unit/*.py)",
+      "Bash(else echo \"Directory not found\")",
+      "Bash(venvScriptspython.exe -m pytest tests/unit/test_contact_extraction.py -v --tb=short)",
+      "Bash(del srcagentsprofessor_filter.py)"
     ],
     "deny": [],
     "ask": []

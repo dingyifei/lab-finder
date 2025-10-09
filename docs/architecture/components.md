@@ -35,7 +35,7 @@ This section defines the major logical components/services and their responsibil
 **Key Interfaces:**
 - `validate_config(config_files: list[str]) -> ValidationResult` - Validate all configs against schemas
 - `load_or_prompt_credentials() -> Credentials` - Load stored credentials or prompt user (FR2-FR3)
-- `consolidate_profile(configs: dict) -> UserProfile` - Merge configs into research profile (FR6)
+- `consolidate_profile(configs: dict) -> ConsolidatedProfile` - Merge configs into research profile (FR6)
 
 **Dependencies:**
 - jsonschema for JSON validation
@@ -64,7 +64,7 @@ This section defines the major logical components/services and their responsibil
 
 **Key Interfaces:**
 - `discover_structure(university_url: str) -> list[Department]` - Scrape and map department tree
-- `filter_departments(departments: list[Department], profile: UserProfile) -> list[Department]` - LLM-based relevance filtering
+- `filter_departments(departments: list[Department], user_profile: dict) -> list[Department]` - LLM-based relevance filtering
 
 **Dependencies:**
 - Claude Agent SDK built-in web tools (primary)
@@ -92,7 +92,8 @@ This section defines the major logical components/services and their responsibil
 
 **Key Interfaces:**
 - `discover_professors(departments: list[Department]) -> list[Professor]` - Scrape professor directories
-- `filter_professors_batch(professors: list[Professor], profile: UserProfile) -> list[Professor]` - Batch LLM filtering with confidence scores
+- `filter_professors(correlation_id: str) -> list[Professor]` - Main filtering orchestration with batch processing
+- `filter_professor_single(professor: Professor, profile_dict: dict, correlation_id: str) -> dict` - Single professor LLM filtering
 
 **Dependencies:**
 - Web scraping tools (built-in + Playwright)
@@ -149,7 +150,7 @@ This section defines the major logical components/services and their responsibil
 
 **Key Interfaces:**
 - `fetch_publications(author_name: str, affiliation: str, years: int) -> list[Publication]` - Query paper-search-mcp
-- `analyze_abstract(publication: Publication, profile: UserProfile) -> float` - LLM relevance scoring
+- `analyze_abstract(publication: Publication, profile_dict: dict) -> float` - LLM relevance scoring
 - `assign_journal_scores(publications: list[Publication]) -> None` - Lookup SJR scores from CSV
 
 **Dependencies:**
@@ -264,7 +265,7 @@ This section defines the major logical components/services and their responsibil
 **Responsibility:** LLM-driven multi-factor scoring of labs (Epic 7: FR25)
 
 **Key Interfaces:**
-- `identify_scoring_criteria(profile: UserProfile) -> dict[str, float]` - LLM dynamically selects criteria and weights
+- `identify_scoring_criteria(profile_dict: dict) -> dict[str, float]` - LLM dynamically selects criteria and weights
 - `score_lab(lab: Lab, criteria: dict) -> FitnessScore` - Calculate scores per criterion
 - `rank_labs(scores: list[FitnessScore]) -> list[FitnessScore]` - Sort by overall score
 

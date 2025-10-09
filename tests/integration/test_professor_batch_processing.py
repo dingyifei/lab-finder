@@ -157,12 +157,15 @@ async def test_batch_checkpoint_creation(
     mock_checkpoint_manager = Mock()
     mock_checkpoint_manager.save_batch = Mock()
 
-    with patch(
-        "src.agents.professor_filtering.filter_professor_single",
-        side_effect=mock_filter_professor_single,
-    ), patch(
-        "src.agents.professor_filtering.CheckpointManager",
-        return_value=mock_checkpoint_manager,
+    with (
+        patch(
+            "src.agents.professor_filtering.filter_professor_single",
+            side_effect=mock_filter_professor_single,
+        ),
+        patch(
+            "src.agents.professor_filtering.CheckpointManager",
+            return_value=mock_checkpoint_manager,
+        ),
     ):
         filtered = await filter_professor_batch_parallel(
             batch=batch,
@@ -220,31 +223,35 @@ async def test_resume_from_checkpoint(
     mock_system_params.filtering_config.low_confidence_threshold = 70
     mock_system_params.filtering_config.high_confidence_threshold = 90
 
-    with patch(
-        "src.agents.professor_filtering.CheckpointManager",
-        return_value=mock_checkpoint_manager,
-    ), patch(
-        "src.agents.professor_filtering.load_user_profile", return_value=mock_profile
-    ), patch(
-        "src.agents.professor_filtering.filter_professor_single",
-        side_effect=mock_filter_professor_single,
-    ), patch(
-        "src.agents.professor_filtering.SystemParams.load",
-        return_value=mock_system_params,
-    ), patch(
-        "src.agents.professor_filtering.ProgressTracker"
-    ), patch(
-        "src.utils.confidence.apply_manual_overrides", return_value=0
-    ), patch(
-        "src.utils.confidence.calculate_confidence_stats",
-        return_value={
-            "total_professors": 20,
-            "included": {"high": 20, "medium": 0, "low": 0},
-            "excluded": {"high": 0, "medium": 0, "low": 0},
-            "distribution_analysis": {"quality_assessment": "Good"},
-        },
-    ), patch(
-        "src.utils.confidence.save_confidence_stats_report"
+    with (
+        patch(
+            "src.agents.professor_filtering.CheckpointManager",
+            return_value=mock_checkpoint_manager,
+        ),
+        patch(
+            "src.agents.professor_filtering.load_user_profile",
+            return_value=mock_profile,
+        ),
+        patch(
+            "src.agents.professor_filtering.filter_professor_single",
+            side_effect=mock_filter_professor_single,
+        ),
+        patch(
+            "src.agents.professor_filtering.SystemParams.load",
+            return_value=mock_system_params,
+        ),
+        patch("src.agents.professor_filtering.ProgressTracker"),
+        patch("src.utils.confidence.apply_manual_overrides", return_value=0),
+        patch(
+            "src.utils.confidence.calculate_confidence_stats",
+            return_value={
+                "total_professors": 20,
+                "included": {"high": 20, "medium": 0, "low": 0},
+                "excluded": {"high": 0, "medium": 0, "low": 0},
+                "distribution_analysis": {"quality_assessment": "Good"},
+            },
+        ),
+        patch("src.utils.confidence.save_confidence_stats_report"),
     ):
         # Mock load_batches to return all professors as if from discovery phase
         mock_checkpoint_manager.load_batches.return_value = [
@@ -315,31 +322,37 @@ async def test_progress_tracking_batches(
     mock_system_params.filtering_config.low_confidence_threshold = 70
     mock_system_params.filtering_config.high_confidence_threshold = 90
 
-    with patch(
-        "src.agents.professor_filtering.ProgressTracker", return_value=mock_tracker
-    ), patch(
-        "src.agents.professor_filtering.load_user_profile", return_value=mock_profile
-    ), patch(
-        "src.agents.professor_filtering.filter_professor_single",
-        side_effect=mock_filter_professor_single,
-    ), patch(
-        "src.agents.professor_filtering.CheckpointManager",
-        return_value=mock_checkpoint_manager,
-    ), patch(
-        "src.agents.professor_filtering.SystemParams.load",
-        return_value=mock_system_params,
-    ), patch(
-        "src.utils.confidence.apply_manual_overrides", return_value=0
-    ), patch(
-        "src.utils.confidence.calculate_confidence_stats",
-        return_value={
-            "total_professors": 20,
-            "included": {"high": 20, "medium": 0, "low": 0},
-            "excluded": {"high": 0, "medium": 0, "low": 0},
-            "distribution_analysis": {"quality_assessment": "Good"},
-        },
-    ), patch(
-        "src.utils.confidence.save_confidence_stats_report"
+    with (
+        patch(
+            "src.agents.professor_filtering.ProgressTracker", return_value=mock_tracker
+        ),
+        patch(
+            "src.agents.professor_filtering.load_user_profile",
+            return_value=mock_profile,
+        ),
+        patch(
+            "src.agents.professor_filtering.filter_professor_single",
+            side_effect=mock_filter_professor_single,
+        ),
+        patch(
+            "src.agents.professor_filtering.CheckpointManager",
+            return_value=mock_checkpoint_manager,
+        ),
+        patch(
+            "src.agents.professor_filtering.SystemParams.load",
+            return_value=mock_system_params,
+        ),
+        patch("src.utils.confidence.apply_manual_overrides", return_value=0),
+        patch(
+            "src.utils.confidence.calculate_confidence_stats",
+            return_value={
+                "total_professors": 20,
+                "included": {"high": 20, "medium": 0, "low": 0},
+                "excluded": {"high": 0, "medium": 0, "low": 0},
+                "distribution_analysis": {"quality_assessment": "Good"},
+            },
+        ),
+        patch("src.utils.confidence.save_confidence_stats_report"),
     ):
         await filter_professors("test-progress")
 
@@ -394,7 +407,9 @@ async def test_individual_professor_failure_handling(
     assert len(filtered) == 5
 
     # Verify failed professors have inclusive fallback
-    failed_profs = [p for p in filtered if "llm_filtering_failed" in p.data_quality_flags]
+    failed_profs = [
+        p for p in filtered if "llm_filtering_failed" in p.data_quality_flags
+    ]
     assert len(failed_profs) == 2  # prof-1 and prof-3
 
     # Verify failed professors marked as relevant (inclusive)
@@ -405,9 +420,7 @@ async def test_individual_professor_failure_handling(
 
 
 @pytest.mark.asyncio
-async def test_batch_infrastructure_failure(
-    sample_professors: list[Professor]
-) -> None:
+async def test_batch_infrastructure_failure(sample_professors: list[Professor]) -> None:
     """Test batch infrastructure failure re-raises exception.
 
     Story 3.5 Task 8: Infrastructure failures re-raise for resumability
@@ -444,19 +457,24 @@ async def test_batch_infrastructure_failure(
     mock_system_params.filtering_config.low_confidence_threshold = 70
     mock_system_params.filtering_config.high_confidence_threshold = 90
 
-    with patch(
-        "src.agents.professor_filtering.CheckpointManager",
-        return_value=mock_checkpoint_manager,
-    ), patch(
-        "src.agents.professor_filtering.load_user_profile", return_value=mock_profile
-    ), patch(
-        "src.agents.professor_filtering.filter_professor_single",
-        side_effect=mock_filter_professor_single,
-    ), patch(
-        "src.agents.professor_filtering.SystemParams.load",
-        return_value=mock_system_params,
-    ), patch(
-        "src.agents.professor_filtering.ProgressTracker"
+    with (
+        patch(
+            "src.agents.professor_filtering.CheckpointManager",
+            return_value=mock_checkpoint_manager,
+        ),
+        patch(
+            "src.agents.professor_filtering.load_user_profile",
+            return_value=mock_profile,
+        ),
+        patch(
+            "src.agents.professor_filtering.filter_professor_single",
+            side_effect=mock_filter_professor_single,
+        ),
+        patch(
+            "src.agents.professor_filtering.SystemParams.load",
+            return_value=mock_system_params,
+        ),
+        patch("src.agents.professor_filtering.ProgressTracker"),
     ):
         # Verify exception is re-raised (not caught)
         with pytest.raises(Exception, match="Disk full"):
@@ -511,31 +529,35 @@ async def test_full_batch_processing_flow(sample_professors: list[Professor]) ->
     mock_system_params.filtering_config.low_confidence_threshold = 70
     mock_system_params.filtering_config.high_confidence_threshold = 90
 
-    with patch(
-        "src.agents.professor_filtering.CheckpointManager",
-        return_value=mock_checkpoint_manager,
-    ), patch(
-        "src.agents.professor_filtering.load_user_profile", return_value=mock_profile
-    ), patch(
-        "src.agents.professor_filtering.filter_professor_single",
-        side_effect=mock_filter_professor_single,
-    ), patch(
-        "src.agents.professor_filtering.SystemParams.load",
-        return_value=mock_system_params,
-    ), patch(
-        "src.agents.professor_filtering.ProgressTracker"
-    ), patch(
-        "src.utils.confidence.apply_manual_overrides", return_value=0
-    ), patch(
-        "src.utils.confidence.calculate_confidence_stats",
-        return_value={
-            "total_professors": 20,
-            "included": {"high": 10, "medium": 10, "low": 0},
-            "excluded": {"high": 0, "medium": 0, "low": 0},
-            "distribution_analysis": {"quality_assessment": "Good"},
-        },
-    ), patch(
-        "src.utils.confidence.save_confidence_stats_report"
+    with (
+        patch(
+            "src.agents.professor_filtering.CheckpointManager",
+            return_value=mock_checkpoint_manager,
+        ),
+        patch(
+            "src.agents.professor_filtering.load_user_profile",
+            return_value=mock_profile,
+        ),
+        patch(
+            "src.agents.professor_filtering.filter_professor_single",
+            side_effect=mock_filter_professor_single,
+        ),
+        patch(
+            "src.agents.professor_filtering.SystemParams.load",
+            return_value=mock_system_params,
+        ),
+        patch("src.agents.professor_filtering.ProgressTracker"),
+        patch("src.utils.confidence.apply_manual_overrides", return_value=0),
+        patch(
+            "src.utils.confidence.calculate_confidence_stats",
+            return_value={
+                "total_professors": 20,
+                "included": {"high": 10, "medium": 10, "low": 0},
+                "excluded": {"high": 0, "medium": 0, "low": 0},
+                "distribution_analysis": {"quality_assessment": "Good"},
+            },
+        ),
+        patch("src.utils.confidence.save_confidence_stats_report"),
     ):
         result = await filter_professors("test-integration")
 

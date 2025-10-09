@@ -5,6 +5,7 @@ Pydantic model for lab website data and metadata.
 Story 4.1: Task 2
 Story 4.2: Task 1 (Archive.org fields)
 Story 4.3: Task 1 (Contact fields)
+Story 4.4: Task 1 (Website status field and flags)
 """
 
 import hashlib
@@ -14,27 +15,33 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
-# Data quality flag constants (Stories 4.1, 4.2, 4.3)
+# Data quality flag constants (Stories 4.1, 4.2, 4.3, 4.4)
 LAB_DATA_QUALITY_FLAGS = {
     # Story 4.1 flags
-    "no_website",              # No lab website URL found
-    "scraping_failed",         # Website scraping failed
-    "playwright_fallback",     # WebFetch failed, used Playwright
-    "missing_description",     # No description found
+    "no_website",  # No lab website URL found
+    "scraping_failed",  # Website scraping failed
+    "playwright_fallback",  # WebFetch failed, used Playwright
+    "missing_description",  # No description found
     "missing_research_focus",  # No research focus/areas found
-    "missing_news",            # No news/updates found
-    "missing_last_updated",    # No last updated date found
+    "missing_news",  # No news/updates found
+    "missing_last_updated",  # No last updated date found
     # Story 4.2 flags (Archive.org)
-    "no_archive_data",         # No snapshots found in Wayback Machine
-    "archive_query_failed",    # Archive.org API query failed
+    "no_archive_data",  # No snapshots found in Wayback Machine
+    "archive_query_failed",  # Archive.org API query failed
     # Story 4.3 flags (Contact extraction)
-    "no_contact_info",         # No contact information found at all
-    "no_email",                # No email addresses found
-    "no_contact_form",         # No contact form URL found
-    "no_application_url",      # No application URL found
-    "email_extraction_failed",      # Email extraction raised exception
+    "no_contact_info",  # No contact information found at all
+    "no_email",  # No email addresses found
+    "no_contact_form",  # No contact form URL found
+    "no_application_url",  # No application URL found
+    "email_extraction_failed",  # Email extraction raised exception
     "contact_form_extraction_failed",  # Contact form extraction raised exception
     "application_url_extraction_failed",  # Application URL extraction raised exception
+    # Story 4.4 flags (Website status)
+    "stale_website",  # Website not updated >2 years
+    "aging_website",  # Website not updated 1-2 years
+    "using_publication_data",  # Relying on publications due to missing/stale website
+    "members_will_be_inferred",  # Lab members will be inferred from co-authorship (Story 5.5)
+    "status_detection_failed",  # Error occurred during status detection
 }
 
 
@@ -46,7 +53,7 @@ class Lab(BaseModel):
 
     id: str = Field(
         ...,
-        description="Unique identifier (SHA256 hash of professor_id:lab_name, first 16 chars)"
+        description="Unique identifier (SHA256 hash of professor_id:lab_name, first 16 chars)",
     )
     professor_id: str = Field(..., description="Foreign key to Professor")
     professor_name: str = Field(..., description="PI name for display")
@@ -76,7 +83,7 @@ class Lab(BaseModel):
     )
     update_frequency: str = Field(
         default="unknown",
-        description="Website update frequency (weekly/monthly/quarterly/yearly/stale/unknown)"
+        description="Website update frequency (weekly/monthly/quarterly/yearly/stale/unknown)",
     )
     # Contact fields (Story 4.3)
     contact_emails: list[str] = Field(
@@ -87,6 +94,11 @@ class Lab(BaseModel):
     )
     application_url: Optional[str] = Field(
         None, description="Prospective student/application URL"
+    )
+    # Website status (Story 4.4)
+    website_status: str = Field(
+        default="unknown",
+        description="Website status (active/aging/stale/missing/unavailable/unknown)",
     )
 
     @staticmethod

@@ -104,7 +104,7 @@ def test_discover_lab_website_none_lab_url():
 def test_parse_lab_content_with_json():
     """Test parsing JSON from Claude response."""
     # Arrange
-    response = '''```json
+    response = """```json
 {
   "description": "Lab overview",
   "research_focus": ["AI", "ML"],
@@ -112,7 +112,7 @@ def test_parse_lab_content_with_json():
   "last_updated": "2025-10-01",
   "website_content": "Full text"
 }
-```'''
+```"""
 
     # Act
     data = parse_lab_content(response)

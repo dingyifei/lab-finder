@@ -35,6 +35,6 @@ These standards are **MANDATORY** for AI agents and human developers. This secti
 | Functions | snake_case | `discover_structure()` |
 | Constants | UPPER_SNAKE_CASE | `MAX_RETRIES = 3` |
 | Private methods | `_leading_underscore` | `_validate_credentials()` |
-| Pydantic models | PascalCase | `UserProfile`, `FitnessScore` |
+| Pydantic models | PascalCase | `ConsolidatedProfile`, `Professor`, `FitnessScore` |
 | Files | snake_case | `university_discovery.py` |
 | Test files | `test_<module>.py` | `test_checkpoint_manager.py` |

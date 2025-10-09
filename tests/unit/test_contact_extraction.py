@@ -436,7 +436,9 @@ def test_full_contact_extraction_integration():
 
     # Check URLs
     assert result["contact_form_url"] == "https://vision.stanford.edu/contact"
-    assert result["application_url"] == "https://vision.stanford.edu/prospective-students"
+    assert (
+        result["application_url"] == "https://vision.stanford.edu/prospective-students"
+    )
 
     # Check flags
     assert "no_contact_info" not in result["data_quality_flags"]

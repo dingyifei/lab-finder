@@ -111,9 +111,7 @@ async def test_process_single_lab_scraping_fails():
 async def test_discover_and_scrape_labs_batch_no_professors():
     """Test batch orchestrator with no professors."""
     # Arrange
-    with patch(
-        "src.agents.lab_research.CheckpointManager"
-    ) as mock_checkpoint_manager:
+    with patch("src.agents.lab_research.CheckpointManager") as mock_checkpoint_manager:
         mock_cm_instance = MagicMock()
         mock_cm_instance.get_resume_point.return_value = 1
         mock_cm_instance.load_batches.side_effect = FileNotFoundError()
@@ -172,15 +170,14 @@ async def test_discover_and_scrape_labs_batch_with_professors(mocker):
     mock_cm.load_batches.return_value = [[mock_professors[0]], [mock_professors[1]]]
     mock_cm.save_batch = MagicMock()
 
-    with patch(
-        "src.agents.lab_research.CheckpointManager", return_value=mock_cm
-    ), patch(
-        "src.agents.lab_research.SystemParams.load"
-    ) as mock_system_params, patch(
-        "src.agents.lab_research.scrape_lab_website",
-        new=AsyncMock(return_value=mock_scraped_data),
-    ), patch(
-        "src.utils.progress_tracker.ProgressTracker"
+    with (
+        patch("src.agents.lab_research.CheckpointManager", return_value=mock_cm),
+        patch("src.agents.lab_research.SystemParams.load") as mock_system_params,
+        patch(
+            "src.agents.lab_research.scrape_lab_website",
+            new=AsyncMock(return_value=mock_scraped_data),
+        ),
+        patch("src.utils.progress_tracker.ProgressTracker"),
     ):
         # Mock system params
         mock_params = MagicMock()
@@ -246,15 +243,14 @@ async def test_discover_and_scrape_labs_batch_resume_from_checkpoint(mocker):
         "data_quality_flags": [],
     }
 
-    with patch(
-        "src.agents.lab_research.CheckpointManager", return_value=mock_cm
-    ), patch(
-        "src.agents.lab_research.SystemParams.load"
-    ) as mock_system_params, patch(
-        "src.agents.lab_research.scrape_lab_website",
-        new=AsyncMock(return_value=mock_scraped_data),
-    ), patch(
-        "src.utils.progress_tracker.ProgressTracker"
+    with (
+        patch("src.agents.lab_research.CheckpointManager", return_value=mock_cm),
+        patch("src.agents.lab_research.SystemParams.load") as mock_system_params,
+        patch(
+            "src.agents.lab_research.scrape_lab_website",
+            new=AsyncMock(return_value=mock_scraped_data),
+        ),
+        patch("src.utils.progress_tracker.ProgressTracker"),
     ):
         # Mock system params with batch size 1 to ensure multiple batches
         mock_params = MagicMock()

@@ -323,8 +323,21 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 - Story 4.1 complete - Lab website discovery & scraping (95/100 QA score) ✅
 - Story 4.2 complete - Archive.org integration for website history (95/100 QA score) ✅
 - Story 4.3 complete - Contact information extraction (95/100 QA score) ✅
+- Story 4.4 complete - Graceful handling of missing/stale websites (95/100 QA score) ✅
 
 ### Key Insights
+
+**Epic 4 (Story 4.4):**
+- Website status detection: 6-state model (active/aging/stale/missing/unavailable/unknown) based on last_updated/last_wayback_snapshot
+- Timezone handling: Proper handling of both timezone-aware and naive datetime objects, assumes UTC for naive dates
+- Staleness thresholds: >730 days = stale, 365-730 days = aging, <365 days = active
+- Alternative data strategy: Labs with missing/stale/unavailable websites flagged with `using_publication_data` and `members_will_be_inferred` for Epic 5
+- Data quality flags: Added 5 new flags (stale_website, aging_website, using_publication_data, members_will_be_inferred, status_detection_failed)
+- Report generation: Comprehensive markdown report with statistics, status breakdowns, and alternative data indicators
+- Graceful degradation: Status detection failures default to "unknown" status, never block pipeline
+- Integration points: Integrated into all lab processing paths (success, missing, failed) in process_single_lab()
+- Testing: 28 comprehensive tests covering all status values, boundary conditions, timezone handling, error cases, and report generation
+- QA score: 95/100 - exceptional quality, zero technical debt
 
 **Epic 3 (Story 3.1c):**
 - Deduplication: LLM-based fuzzy name matching with exact match pre-filtering (reduces LLM calls by ~70%)
@@ -464,9 +477,9 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 
 ### Current Environment
 
-**Working Components:** Validation, credential management, checkpoints, logging, LLM helpers, progress tracking, MCP client, profile consolidation, university discovery, department filtering, professor model, professor discovery, parallel professor discovery, deduplication, rate limiting, professor filtering, confidence scoring, filtered professor logging, batch processing, lab website discovery, lab website scraping, archive.org integration, contact information extraction
+**Working Components:** Validation, credential management, checkpoints, logging, LLM helpers, progress tracking, MCP client, profile consolidation, university discovery, department filtering, professor model, professor discovery, parallel professor discovery, deduplication, rate limiting, professor filtering, confidence scoring, filtered professor logging, batch processing, lab website discovery, lab website scraping, archive.org integration, contact information extraction, website status detection, missing website handling
 
-**Test Status:** 473 tests passing (255 from Epics 1-2 + 138 from Epic 3 + 31 from Story 4.1 + 21 from Story 4.2 + 28 from Story 4.3), ruff ✅, mypy ✅
+**Test Status:** 501 tests passing (255 from Epics 1-2 + 138 from Epic 3 + 31 from Story 4.1 + 21 from Story 4.2 + 28 from Story 4.3 + 28 from Story 4.4), ruff ✅, mypy ✅
 
 ## Documentation References
 

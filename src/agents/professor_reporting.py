@@ -148,7 +148,9 @@ async def generate_filter_report(
         component="professor_reporting",
     )
 
-    logger.info("Generating filtered professors report", total_professors=len(professors))
+    logger.info(
+        "Generating filtered professors report", total_professors=len(professors)
+    )
 
     # Calculate statistics
     stats = calculate_filter_statistics(professors)
@@ -191,9 +193,7 @@ async def generate_filter_report(
 
     # Categorize by confidence
     high_conf_excluded = [p for p in excluded if p.relevance_confidence >= 90]
-    med_conf_excluded = [
-        p for p in excluded if 70 <= p.relevance_confidence < 90
-    ]
+    med_conf_excluded = [p for p in excluded if 70 <= p.relevance_confidence < 90]
     low_conf_excluded = [p for p in excluded if p.relevance_confidence < 70]
 
     high_conf_included = [p for p in included if p.relevance_confidence >= 90]
@@ -234,9 +234,7 @@ async def generate_filter_report(
         f.write("## Filtering Statistics by Department\n\n")
 
         if sorted_depts:
-            f.write(
-                "| Department | Total | Included | Excluded | Inclusion Rate |\n"
-            )
+            f.write("| Department | Total | Included | Excluded | Inclusion Rate |\n")
             f.write("|------------|-------|----------|----------|----------------|\n")
 
             for dept_name, dept_data in sorted_depts:
@@ -258,13 +256,17 @@ async def generate_filter_report(
         f.write("## Excluded Professors\n\n")
 
         # High Confidence Exclusions
-        f.write(f"### High Confidence Exclusions (≥90) - {len(high_conf_excluded)} professors\n\n")
+        f.write(
+            f"### High Confidence Exclusions (≥90) - {len(high_conf_excluded)} professors\n\n"
+        )
 
         if high_conf_excluded:
             f.write(
                 "| Professor | Department | Research Areas | Confidence | Reason |\n"
             )
-            f.write("|-----------|------------|----------------|------------|--------|\n")
+            f.write(
+                "|-----------|------------|----------------|------------|--------|\n"
+            )
 
             for prof in high_conf_excluded[:50]:  # Limit to 50 for readability
                 research_str = ", ".join(prof.research_areas[:3])
@@ -288,13 +290,17 @@ async def generate_filter_report(
         f.write("\n")
 
         # Medium Confidence Exclusions
-        f.write(f"### Medium Confidence Exclusions (70-89) - {len(med_conf_excluded)} professors\n\n")
+        f.write(
+            f"### Medium Confidence Exclusions (70-89) - {len(med_conf_excluded)} professors\n\n"
+        )
 
         if med_conf_excluded:
             f.write(
                 "| Professor | Department | Research Areas | Confidence | Reason |\n"
             )
-            f.write("|-----------|------------|----------------|------------|--------|\n")
+            f.write(
+                "|-----------|------------|----------------|------------|--------|\n"
+            )
 
             for prof in med_conf_excluded[:20]:
                 research_str = ", ".join(prof.research_areas[:3])
@@ -318,7 +324,9 @@ async def generate_filter_report(
         f.write("\n")
 
         # Low Confidence Exclusions
-        f.write(f"### Low Confidence Exclusions (<70) - {len(low_conf_excluded)} professors\n\n")
+        f.write(
+            f"### Low Confidence Exclusions (<70) - {len(low_conf_excluded)} professors\n\n"
+        )
         f.write("**⚠️ Review Recommended**")
 
         if borderline_report_exists:
@@ -330,7 +338,9 @@ async def generate_filter_report(
             f.write(
                 "| Professor | Department | Research Areas | Confidence | Reason |\n"
             )
-            f.write("|-----------|------------|----------------|------------|--------|\n")
+            f.write(
+                "|-----------|------------|----------------|------------|--------|\n"
+            )
 
             for prof in low_conf_excluded[:20]:
                 research_str = ", ".join(prof.research_areas[:3])
@@ -355,7 +365,9 @@ async def generate_filter_report(
 
         # Included Professors Summary (Task 3)
         f.write("## Included Professors Summary\n\n")
-        f.write(f"### High Confidence Inclusions (≥90) - {len(high_conf_included)} professors\n\n")
+        f.write(
+            f"### High Confidence Inclusions (≥90) - {len(high_conf_included)} professors\n\n"
+        )
 
         if high_conf_included:
             f.write(
@@ -397,7 +409,9 @@ async def generate_filter_report(
             f.write(f"- **Department:** {prof.department_name}\n")
             if prof.school:
                 f.write(f"- **School:** {prof.school}\n")
-            f.write(f"- **Research Areas:** {', '.join(prof.research_areas) if prof.research_areas else 'Not specified'}\n")
+            f.write(
+                f"- **Research Areas:** {', '.join(prof.research_areas) if prof.research_areas else 'Not specified'}\n"
+            )
             f.write(f"- **Confidence:** {prof.relevance_confidence}\n")
             f.write(f"- **Reasoning:** {prof.relevance_reasoning}\n")
             f.write(f"- **Profile:** [{prof.profile_url}]({prof.profile_url})\n\n")
@@ -411,7 +425,7 @@ async def generate_filter_report(
         f.write("## How to Override Filter Decisions\n\n")
         f.write("If you believe a professor was incorrectly filtered:\n\n")
         f.write("1. Create/edit `config/manual-professor-additions.json`\n")
-        f.write("2. Add professor ID to \"additions\" list\n")
+        f.write('2. Add professor ID to "additions" list\n')
         f.write("3. Re-run the pipeline from Phase 3\n\n")
         f.write("The professor will be included in subsequent analysis.\n\n")
         f.write("**Example format:**\n\n")
@@ -441,7 +455,9 @@ async def generate_filter_report(
     )
 
 
-async def load_manual_additions(config_path: str = "config/manual-professor-additions.json") -> dict[str, Any]:
+async def load_manual_additions(
+    config_path: str = "config/manual-professor-additions.json",
+) -> dict[str, Any]:
     """Load manual professor additions from config file.
 
     Story 3.4: Task 5 - Enable Manual Professor Addition
@@ -464,7 +480,9 @@ async def load_manual_additions(config_path: str = "config/manual-professor-addi
     additions_path = Path(config_path)
 
     if not additions_path.exists():
-        logger.debug("Manual additions file not found, no additions to apply", path=config_path)
+        logger.debug(
+            "Manual additions file not found, no additions to apply", path=config_path
+        )
         return {"additions": []}
 
     try:
@@ -480,7 +498,9 @@ async def load_manual_additions(config_path: str = "config/manual-professor-addi
         return additions_data
 
     except json.JSONDecodeError as e:
-        logger.error("Failed to parse manual additions file", path=config_path, error=str(e))
+        logger.error(
+            "Failed to parse manual additions file", path=config_path, error=str(e)
+        )
         return {"additions": []}
     except Exception as e:
         logger.error("Failed to load manual additions", path=config_path, error=str(e))
@@ -530,7 +550,9 @@ async def apply_manual_additions(
         reason = addition.get("reason", "User manually added despite filter")
 
         if not prof_id:
-            logger.warning("Invalid addition entry, missing professor_id", addition=addition)
+            logger.warning(
+                "Invalid addition entry, missing professor_id", addition=addition
+            )
             continue
 
         # Find professor

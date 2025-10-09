@@ -21,7 +21,7 @@ sequenceDiagram
     Validator->>User: Prompt for missing credentials
     User-->>Validator: Provide LinkedIn credentials
     Validator->>Validator: Consolidate user profile (LLM)
-    Validator-->>CLI: UserProfile + configs valid
+    Validator-->>CLI: ConsolidatedProfile + configs valid
 
     CLI->>UnivAgent: Discover + filter departments
     UnivAgent->>UnivAgent: Scrape university structure

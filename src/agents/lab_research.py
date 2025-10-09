@@ -5,11 +5,12 @@ Discovers and scrapes lab websites for content and metadata.
 Story 4.1: Epic 4 (Lab Intelligence)
 Story 4.2: Archive.org integration
 Story 4.3: Contact information extraction
+Story 4.4: Missing/stale website handling
 """
 
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Any
 from urllib.parse import urlparse, urljoin
 
@@ -127,7 +128,7 @@ async def scrape_lab_website(lab_url: str, correlation_id: str) -> dict[str, Any
     logger = get_logger(
         correlation_id=correlation_id,
         phase="phase-4-labs",
-        component="lab-research-agent"
+        component="lab-research-agent",
     )
 
     # Configure Claude Agent SDK with web scraping tools
@@ -300,7 +301,7 @@ async def scrape_with_playwright_fallback(
     logger = get_logger(
         correlation_id=correlation_id,
         phase="phase-4-labs",
-        component="lab-research-agent"
+        component="lab-research-agent",
     )
     logger.info("Using Playwright fallback", lab_url=lab_url)
 
@@ -584,7 +585,7 @@ def extract_emails(text: str) -> list[str]:
 
     Story 4.3: Task 2
     """
-    pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+    pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
     emails = re.findall(pattern, text)
 
     # Normalize to lowercase for deduplication
@@ -592,8 +593,13 @@ def extract_emails(text: str) -> list[str]:
 
     # Filter generic emails
     generic_prefixes = (
-        'webmaster@', 'info@', 'admin@', 'support@',
-        'contact@', 'noreply@', 'no-reply@'
+        "webmaster@",
+        "info@",
+        "admin@",
+        "support@",
+        "contact@",
+        "noreply@",
+        "no-reply@",
     )
     filtered = [e for e in emails if not e.startswith(generic_prefixes)]
 
@@ -612,7 +618,7 @@ def validate_email(email: str) -> bool:
 
     Story 4.3: Task 2
     """
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
     return bool(re.match(pattern, email))
 
 
@@ -640,7 +646,7 @@ def extract_contact_form(html: str, base_url: str) -> Optional[str]:
         if match:
             url = match.group(1)
             # Convert relative to absolute URL
-            if not url.startswith(('http://', 'https://')):
+            if not url.startswith(("http://", "https://")):
                 url = urljoin(base_url, url)
             return url
     return None
@@ -659,17 +665,22 @@ def extract_application_url(html: str, base_url: str) -> Optional[str]:
     Story 4.3: Task 4
     """
     application_keywords = [
-        'prospective', 'apply', 'join', 'positions',
-        'openings', 'opportunities', 'PhD application'
+        "prospective",
+        "apply",
+        "join",
+        "positions",
+        "openings",
+        "opportunities",
+        "PhD application",
     ]
 
     for keyword in application_keywords:
-        pattern = f'href=["\']([^"\']*{keyword}[^"\']*)["\']'
+        pattern = f"href=[\"']([^\"']*{keyword}[^\"']*)[\"']"
         match = re.search(pattern, html, re.IGNORECASE)
         if match:
             url = match.group(1)
             # Convert relative to absolute URL
-            if not url.startswith(('http://', 'https://')):
+            if not url.startswith(("http://", "https://")):
                 url = urljoin(base_url, url)
             return url
     return None
@@ -731,9 +742,7 @@ def extract_contact_info_safe(website_content: str, lab_url: str) -> dict[str, A
     }
 
 
-async def process_single_lab(
-    professor: Professor, correlation_id: str
-) -> Lab:
+async def process_single_lab(professor: Professor, correlation_id: str) -> Lab:
     """Process a single professor's lab.
 
     Orchestrates lab discovery, scraping, and data extraction.
@@ -750,7 +759,7 @@ async def process_single_lab(
     logger = get_logger(
         correlation_id=correlation_id,
         phase="phase-4-labs",
-        component="lab-research-agent"
+        component="lab-research-agent",
     )
 
     # Discover lab URL
@@ -770,11 +779,11 @@ async def process_single_lab(
         logger.info(
             "No website found for professor's lab",
             professor_name=professor.name,
-            lab_name=lab_name
+            lab_name=lab_name,
         )
         data_quality_flags.append("no_website")
 
-        return Lab(
+        lab = Lab(
             id=lab_id,
             professor_id=professor.id,
             professor_name=professor.name,
@@ -795,6 +804,11 @@ async def process_single_lab(
             application_url=None,
         )
 
+        # Story 4.4: Apply website status detection
+        apply_website_status(lab, correlation_id)
+
+        return lab
+
     # Scrape lab website
     try:
         scraped_data = await scrape_lab_website(lab_url, correlation_id)
@@ -803,13 +817,12 @@ async def process_single_lab(
         logger.info(
             "Lab website scraped successfully",
             professor_name=professor.name,
-            lab_url=lab_url
+            lab_url=lab_url,
         )
 
         # Story 4.3: Extract contact information
         contact_info = extract_contact_info_safe(
-            website_content=scraped_data["website_content"],
-            lab_url=lab_url
+            website_content=scraped_data["website_content"], lab_url=lab_url
         )
         data_quality_flags.extend(contact_info["data_quality_flags"])
 
@@ -819,7 +832,7 @@ async def process_single_lab(
             lab_url=lab_url,
             emails_found=len(contact_info["contact_emails"]),
             has_contact_form=bool(contact_info["contact_form_url"]),
-            has_application_url=bool(contact_info["application_url"])
+            has_application_url=bool(contact_info["application_url"]),
         )
 
         lab = Lab(
@@ -846,6 +859,10 @@ async def process_single_lab(
 
         # Story 4.2: Enrich with Archive.org data
         lab = await enrich_with_archive_data(lab, correlation_id)
+
+        # Story 4.4: Apply website status detection
+        apply_website_status(lab, correlation_id)
+
         return lab
 
     except Exception as e:
@@ -853,7 +870,7 @@ async def process_single_lab(
             "Lab website scraping failed",
             professor_name=professor.name,
             lab_url=lab_url,
-            error=str(e)
+            error=str(e),
         )
         data_quality_flags.append("scraping_failed")
 
@@ -880,6 +897,10 @@ async def process_single_lab(
 
         # Story 4.2: Try to enrich with Archive.org data even if scraping failed
         lab = await enrich_with_archive_data(lab, correlation_id)
+
+        # Story 4.4: Apply website status detection
+        apply_website_status(lab, correlation_id)
+
         return lab
 
 
@@ -902,7 +923,7 @@ def calculate_update_frequency(snapshots: list[datetime]) -> str:
     # Calculate intervals between consecutive snapshots
     intervals = []
     for i in range(1, len(snapshots)):
-        delta = (snapshots[i] - snapshots[i-1]).days
+        delta = (snapshots[i] - snapshots[i - 1]).days
         intervals.append(delta)
 
     # Calculate average interval
@@ -924,12 +945,10 @@ def calculate_update_frequency(snapshots: list[datetime]) -> str:
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=10),
-    retry=retry_if_exception_type(Exception)
+    retry=retry_if_exception_type(Exception),
 )
 async def query_wayback_snapshots(
-    url: str,
-    correlation_id: str,
-    years: int = 3
+    url: str, correlation_id: str, years: int = 3
 ) -> list[dict[str, Any]]:
     """Query Wayback Machine API for snapshot history.
 
@@ -949,7 +968,7 @@ async def query_wayback_snapshots(
     logger = get_logger(
         correlation_id=correlation_id,
         phase="phase-4-labs",
-        component="archive-integration"
+        component="archive-integration",
     )
 
     # Apply rate limiting before API request (Task 3)
@@ -959,8 +978,7 @@ async def query_wayback_snapshots(
     try:
         # Initialize Wayback Machine CDX API
         cdx = WaybackMachineCDXServerAPI(
-            url=url,
-            user_agent="LabFinder/1.0 (Research Lab Discovery)"
+            url=url, user_agent="LabFinder/1.0 (Research Lab Discovery)"
         )
 
         # Get snapshots from past N years
@@ -970,16 +988,16 @@ async def query_wayback_snapshots(
         for snapshot in cdx.snapshots():
             # Filter to requested time range
             if snapshot.datetime_timestamp >= from_date:
-                snapshots_list.append({
-                    'datetime': snapshot.datetime_timestamp,
-                    'archive_url': snapshot.archive_url,
-                    'original_url': snapshot.original
-                })
+                snapshots_list.append(
+                    {
+                        "datetime": snapshot.datetime_timestamp,
+                        "archive_url": snapshot.archive_url,
+                        "original_url": snapshot.original,
+                    }
+                )
 
         logger.info(
-            "Archive.org query successful",
-            url=url,
-            snapshots_found=len(snapshots_list)
+            "Archive.org query successful", url=url, snapshots_found=len(snapshots_list)
         )
         return snapshots_list
 
@@ -989,11 +1007,7 @@ async def query_wayback_snapshots(
         return []
 
     except Exception as e:
-        logger.error(
-            "Archive.org API query failed",
-            url=url,
-            error=str(e)
-        )
+        logger.error("Archive.org API query failed", url=url, error=str(e))
         raise  # Will trigger retry via @retry decorator
 
 
@@ -1017,7 +1031,7 @@ async def enrich_with_archive_data(lab: Lab, correlation_id: str) -> Lab:
     logger = get_logger(
         correlation_id=correlation_id,
         phase="phase-4-labs",
-        component="archive-integration"
+        component="archive-integration",
     )
 
     # Skip if lab has no website
@@ -1027,23 +1041,19 @@ async def enrich_with_archive_data(lab: Lab, correlation_id: str) -> Lab:
     try:
         # Query Wayback snapshots (Tasks 5, 6, 7)
         snapshots = await query_wayback_snapshots(
-            url=lab.lab_url,
-            correlation_id=correlation_id,
-            years=3
+            url=lab.lab_url, correlation_id=correlation_id, years=3
         )
 
         # Handle case with no archive data (Task 4)
         if not snapshots:
             lab.data_quality_flags.append("no_archive_data")
             logger.info(
-                "No archive data available",
-                lab_url=lab.lab_url,
-                lab_name=lab.lab_name
+                "No archive data available", lab_url=lab.lab_url, lab_name=lab.lab_name
             )
             return lab
 
         # Extract snapshot dates
-        snapshot_dates = [s['datetime'] for s in snapshots]
+        snapshot_dates = [s["datetime"] for s in snapshots]
         snapshot_dates.sort()  # Ensure chronological order
 
         # Task 6: Find most recent snapshot
@@ -1061,7 +1071,9 @@ async def enrich_with_archive_data(lab: Lab, correlation_id: str) -> Lab:
             lab_name=lab.lab_name,
             snapshots_count=len(snapshot_dates),
             update_frequency=lab.update_frequency,
-            last_snapshot=lab.last_wayback_snapshot.isoformat() if lab.last_wayback_snapshot else None
+            last_snapshot=lab.last_wayback_snapshot.isoformat()
+            if lab.last_wayback_snapshot
+            else None,
         )
 
         return lab
@@ -1073,10 +1085,298 @@ async def enrich_with_archive_data(lab: Lab, correlation_id: str) -> Lab:
             "Archive.org query failed for lab",
             lab_url=lab.lab_url,
             lab_name=lab.lab_name,
-            error=str(e)
+            error=str(e),
         )
         # Return lab with failure flag, don't block processing
         return lab
+
+
+def determine_website_status(lab: Lab) -> str:
+    """Determine website status based on update dates.
+
+    Args:
+        lab: Lab record to analyze
+
+    Returns:
+        Status string: "missing", "unavailable", "stale", "aging", "active", or "unknown"
+
+    Story 4.4: Tasks 2-3
+    """
+    # Task 2: Check for missing website
+    if not lab.lab_url:
+        return "missing"
+
+    # Task 2: Check if scraping failed (reuses Story 4.1 flag)
+    if "scraping_failed" in lab.data_quality_flags:
+        return "unavailable"
+
+    # Task 3: Identify stale websites
+    # Prefer actual update date, fallback to Archive.org
+    last_update = lab.last_updated or lab.last_wayback_snapshot
+
+    if not last_update:
+        return "unknown"
+
+    # Use timezone-aware datetime for safe comparison
+    now = datetime.now(timezone.utc)
+
+    # Ensure last_update is timezone-aware; if naive, assume UTC
+    if last_update.tzinfo is None:
+        last_update = last_update.replace(tzinfo=timezone.utc)
+
+    age_days = (now - last_update).days
+
+    # Task 3: Classify based on age
+    if age_days > 730:  # >2 years
+        return "stale"
+    elif age_days > 365:  # 1-2 years
+        return "aging"
+    else:  # <1 year
+        return "active"
+
+
+def apply_alternative_data_strategy(lab: Lab) -> None:
+    """Configure lab to use alternative data sources.
+
+    Modifies lab record in-place to flag for publication-based analysis
+    when website data is missing, stale, or unavailable.
+
+    Args:
+        lab: Lab record to update
+
+    Story 4.4: Task 4
+    """
+    if lab.website_status in ["missing", "stale", "unavailable"]:
+        # Flag for publication-based analysis (Epic 5)
+        if "using_publication_data" not in lab.data_quality_flags:
+            lab.data_quality_flags.append("using_publication_data")
+
+        # Flag for member inference from co-authorship (Story 5.5)
+        if "members_will_be_inferred" not in lab.data_quality_flags:
+            lab.data_quality_flags.append("members_will_be_inferred")
+
+
+def apply_website_status(lab: Lab, correlation_id: str) -> None:
+    """Apply website status detection and alternative data strategy.
+
+    Wraps status detection with error handling (Task 5).
+
+    Args:
+        lab: Lab record to process (modified in-place)
+        correlation_id: Correlation ID for logging
+
+    Story 4.4: Tasks 2-5
+    """
+    logger = get_logger(
+        correlation_id=correlation_id, phase="phase-4-labs", component="website-status"
+    )
+
+    try:
+        # Task 2-3: Determine website status
+        status = determine_website_status(lab)
+        lab.website_status = status
+
+        # Add appropriate data quality flags
+        if status == "stale":
+            if "stale_website" not in lab.data_quality_flags:
+                lab.data_quality_flags.append("stale_website")
+        elif status == "aging":
+            if "aging_website" not in lab.data_quality_flags:
+                lab.data_quality_flags.append("aging_website")
+
+        # Task 4: Apply alternative data strategy
+        apply_alternative_data_strategy(lab)
+
+        logger.info(
+            "Website status applied",
+            lab_name=lab.lab_name,
+            website_status=status,
+            using_alternative_data="using_publication_data" in lab.data_quality_flags,
+        )
+
+    except Exception as e:
+        # Task 5: Graceful error handling - default to unknown
+        logger.error(
+            "Website status detection failed", lab_name=lab.lab_name, error=str(e)
+        )
+        lab.website_status = "unknown"
+        if "status_detection_failed" not in lab.data_quality_flags:
+            lab.data_quality_flags.append("status_detection_failed")
+
+
+def generate_missing_website_report(
+    labs: list[Lab], output_path: str = "output/missing-websites.md"
+) -> None:
+    """Generate report for labs with missing or stale websites.
+
+    Args:
+        labs: List of Lab records
+        output_path: Path to output markdown file
+
+    Story 4.4: Task 6
+    """
+    from pathlib import Path
+
+    # Calculate statistics
+    total_labs = len(labs)
+    active_labs = [lab for lab in labs if lab.website_status == "active"]
+    aging_labs = [lab for lab in labs if lab.website_status == "aging"]
+    stale_labs = [lab for lab in labs if lab.website_status == "stale"]
+    missing_labs = [lab for lab in labs if lab.website_status == "missing"]
+    unavailable_labs = [lab for lab in labs if lab.website_status == "unavailable"]
+
+    # Build report content
+    report = ["# Labs with Missing or Stale Websites\n"]
+    report.append("## Summary\n")
+    report.append(f"- Total labs analyzed: {total_labs}\n")
+    report.append(
+        f"- Labs with active websites (<1 year): {len(active_labs)} ({len(active_labs) / total_labs * 100:.1f}%)\n"
+    )
+    report.append(
+        f"- Labs with aging websites (1-2 years): {len(aging_labs)} ({len(aging_labs) / total_labs * 100:.1f}%)\n"
+    )
+    report.append(
+        f"- Labs with stale websites (>2 years): {len(stale_labs)} ({len(stale_labs) / total_labs * 100:.1f}%)\n"
+    )
+    report.append(
+        f"- Labs with missing websites: {len(missing_labs)} ({len(missing_labs) / total_labs * 100:.1f}%)\n"
+    )
+    report.append(
+        f"- Labs with unavailable websites: {len(unavailable_labs)} ({len(unavailable_labs) / total_labs * 100:.1f}%)\n"
+    )
+    report.append("\n")
+
+    # Missing websites section
+    if missing_labs:
+        report.append("## Missing Websites\n\n")
+        report.append("| Lab | Professor | Department | Alternative Data | Flags |\n")
+        report.append("|-----|-----------|------------|------------------|-------|\n")
+        for lab in missing_labs:
+            using_pubs = (
+                "✅ Publications"
+                if "using_publication_data" in lab.data_quality_flags
+                else "❌ No data"
+            )
+            members_inferred = (
+                ", ⚠️ Members inferred"
+                if "members_will_be_inferred" in lab.data_quality_flags
+                else ""
+            )
+            alt_data = f"{using_pubs}{members_inferred}"
+            flags = ", ".join(
+                [
+                    f
+                    for f in lab.data_quality_flags
+                    if f
+                    in [
+                        "no_website",
+                        "using_publication_data",
+                        "members_will_be_inferred",
+                    ]
+                ]
+            )
+            report.append(
+                f"| {lab.lab_name} | {lab.professor_name} | {lab.department} | {alt_data} | `{flags}` |\n"
+            )
+        report.append("\n")
+
+    # Stale websites section
+    if stale_labs:
+        report.append("## Stale Websites (>2 years old)\n\n")
+        report.append("| Lab | Professor | Last Updated | Alternative Data | Flags |\n")
+        report.append("|-----|-----------|--------------|------------------|-------|\n")
+        for lab in stale_labs:
+            last_update = lab.last_updated or lab.last_wayback_snapshot
+            last_update_str = (
+                last_update.strftime("%Y-%m-%d") if last_update else "Unknown"
+            )
+            using_pubs = (
+                "✅ Publications"
+                if "using_publication_data" in lab.data_quality_flags
+                else "❌ No data"
+            )
+            members_inferred = (
+                ", ⚠️ Members inferred"
+                if "members_will_be_inferred" in lab.data_quality_flags
+                else ""
+            )
+            alt_data = f"{using_pubs}{members_inferred}"
+            flags = ", ".join(
+                [
+                    f
+                    for f in lab.data_quality_flags
+                    if f
+                    in [
+                        "stale_website",
+                        "using_publication_data",
+                        "members_will_be_inferred",
+                    ]
+                ]
+            )
+            report.append(
+                f"| {lab.lab_name} | {lab.professor_name} | {last_update_str} | {alt_data} | `{flags}` |\n"
+            )
+        report.append("\n")
+
+    # Aging websites section
+    if aging_labs:
+        report.append("## Aging Websites (1-2 years old)\n\n")
+        report.append("| Lab | Professor | Last Updated | Status | Notes |\n")
+        report.append("|-----|-----------|--------------|--------|-------|\n")
+        for lab in aging_labs:
+            last_update = lab.last_updated or lab.last_wayback_snapshot
+            last_update_str = (
+                last_update.strftime("%Y-%m-%d") if last_update else "Unknown"
+            )
+            report.append(
+                f"| {lab.lab_name} | {lab.professor_name} | {last_update_str} | ⚠️ Monitor | May need alternative data soon |\n"
+            )
+        report.append("\n")
+
+    # Unavailable websites section
+    if unavailable_labs:
+        report.append("## Unavailable Websites (URL exists but scraping failed)\n\n")
+        report.append("| Lab | Professor | URL | Alternative Data | Flags |\n")
+        report.append("|-----|-----------|-----|------------------|-------|\n")
+        for lab in unavailable_labs:
+            using_pubs = (
+                "✅ Publications"
+                if "using_publication_data" in lab.data_quality_flags
+                else "❌ No data"
+            )
+            members_inferred = (
+                ", ⚠️ Members inferred"
+                if "members_will_be_inferred" in lab.data_quality_flags
+                else ""
+            )
+            alt_data = f"{using_pubs}{members_inferred}"
+            flags = ", ".join(
+                [
+                    f
+                    for f in lab.data_quality_flags
+                    if f
+                    in [
+                        "scraping_failed",
+                        "using_publication_data",
+                        "members_will_be_inferred",
+                    ]
+                ]
+            )
+            report.append(
+                f"| {lab.lab_name} | {lab.professor_name} | {lab.lab_url or 'N/A'} | {alt_data} | `{flags}` |\n"
+            )
+        report.append("\n")
+
+    # Footer note
+    report.append(
+        "**Note:** Labs with missing/stale/unavailable websites will rely on publication data and co-authorship inference for analysis. These labs are NOT excluded from fitness scoring.\n"
+    )
+
+    # Write report to file
+    output_file = Path(output_path)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write("".join(report))
 
 
 async def discover_and_scrape_labs_batch() -> list[Lab]:
@@ -1103,7 +1403,7 @@ async def discover_and_scrape_labs_batch() -> list[Lab]:
     logger = get_logger(
         correlation_id=orchestrator_id,
         phase="phase-4-labs",
-        component="lab-research-agent"
+        component="lab-research-agent",
     )
 
     logger.info("Starting lab discovery and scraping batch process")
@@ -1121,10 +1421,7 @@ async def discover_and_scrape_labs_batch() -> list[Lab]:
 
     if resume_batch_id > 1:
         # Load existing labs from completed batches
-        logger.info(
-            "Resuming from checkpoint",
-            resume_batch_id=resume_batch_id
-        )
+        logger.info("Resuming from checkpoint", resume_batch_id=resume_batch_id)
         existing_lab_batches = checkpoint_manager.load_batches("phase-4-labs")
         for batch in existing_lab_batches:
             for lab_data in batch:
@@ -1151,10 +1448,7 @@ async def discover_and_scrape_labs_batch() -> list[Lab]:
             if isinstance(prof_data, dict):
                 all_professors.append(Professor(**prof_data))
 
-    logger.info(
-        "Loaded professors",
-        total_professors=len(all_professors)
-    )
+    logger.info("Loaded professors", total_professors=len(all_professors))
 
     if not all_professors:
         logger.warning("No professors to process")
@@ -1163,8 +1457,7 @@ async def discover_and_scrape_labs_batch() -> list[Lab]:
     # Initialize progress tracker (Task 11)
     tracker = ProgressTracker()
     tracker.start_phase(
-        "Phase 4: Lab Website Discovery",
-        total_items=len(all_professors)
+        "Phase 4: Lab Website Discovery", total_items=len(all_professors)
     )
 
     # Divide into batches
@@ -1185,14 +1478,14 @@ async def discover_and_scrape_labs_batch() -> list[Lab]:
             "Processing batch",
             batch_num=batch_num,
             total_batches=total_batches,
-            professors_in_batch=len(batch_professors)
+            professors_in_batch=len(batch_professors),
         )
 
         # Update progress tracker
         tracker.update_batch(
             batch_num=batch_num,
             total_batches=total_batches,
-            batch_desc=f"Labs {start_idx + 1}-{end_idx}"
+            batch_desc=f"Labs {start_idx + 1}-{end_idx}",
         )
 
         # Process each professor in batch
@@ -1208,7 +1501,7 @@ async def discover_and_scrape_labs_batch() -> list[Lab]:
                 logger.error(
                     "Failed to process lab for professor",
                     professor_name=professor.name,
-                    error=str(e)
+                    error=str(e),
                 )
                 # Create minimal lab record with failure flag
                 lab = Lab(
@@ -1227,6 +1520,8 @@ async def discover_and_scrape_labs_batch() -> list[Lab]:
                     contact_form_url=None,
                     application_url=None,
                 )
+                # Story 4.4: Apply website status detection
+                apply_website_status(lab, batch_correlation_id)
                 batch_labs.append(lab)
                 processed_count += 1
                 tracker.update(completed=processed_count)
@@ -1234,20 +1529,16 @@ async def discover_and_scrape_labs_batch() -> list[Lab]:
         # Save batch checkpoint
         try:
             checkpoint_manager.save_batch(
-                phase="phase-4-labs",
-                batch_id=batch_num,
-                data=batch_labs
+                phase="phase-4-labs", batch_id=batch_num, data=batch_labs
             )
             logger.info(
                 "Batch checkpoint saved",
                 batch_num=batch_num,
-                labs_count=len(batch_labs)
+                labs_count=len(batch_labs),
             )
         except Exception as e:
             logger.error(
-                "Failed to save batch checkpoint",
-                batch_num=batch_num,
-                error=str(e)
+                "Failed to save batch checkpoint", batch_num=batch_num, error=str(e)
             )
             raise  # Re-raise to maintain data consistency
 
@@ -1261,7 +1552,7 @@ async def discover_and_scrape_labs_batch() -> list[Lab]:
             "Batch complete",
             batch_num=batch_num,
             labs_discovered=len(batch_labs),
-            missing_websites=missing_count
+            missing_websites=missing_count,
         )
 
     # Complete phase tracking
@@ -1272,7 +1563,14 @@ async def discover_and_scrape_labs_batch() -> list[Lab]:
         total_labs=len(all_labs),
         total_missing_websites=sum(
             1 for lab in all_labs if "no_website" in lab.data_quality_flags
-        )
+        ),
     )
+
+    # Story 4.4: Generate missing website report (Task 6)
+    try:
+        generate_missing_website_report(all_labs)
+        logger.info("Missing website report generated")
+    except Exception as e:
+        logger.error("Failed to generate missing website report", error=str(e))
 
     return all_labs

@@ -84,7 +84,7 @@ async def discover_professors_parallel(departments: list[Department]) -> list[Pr
 
 **Claude SDK Usage:**
 ```python
-async def consolidate_profile(configs: dict) -> UserProfile:
+async def consolidate_profile(configs: dict) -> ConsolidatedProfile:
     """Uses Claude to summarize resume and streamline research interests."""
     options = ClaudeAgentOptions(
         allowed_tools=["Read", "Write"],
@@ -148,12 +148,17 @@ async def discover_structure(university_url: str) -> list[Department]:
 
 **Filtering:**
 ```python
-async def filter_departments(departments: list[Department], user_profile: UserProfile) -> list[Department]:
-    """Use Claude to filter relevant departments."""
+async def filter_departments(departments: list[Department], user_profile: dict[str, str]) -> list[Department]:
+    """Use Claude to filter relevant departments.
+
+    Args:
+        departments: List of departments to filter
+        user_profile: User profile dict with 'interests', 'degree', 'background'
+    """
     options = ClaudeAgentOptions(max_turns=1)
 
     prompt = f"""
-    User Research Interests: {user_profile.research_interests}
+    User Research Interests: {user_profile['interests']}
     Departments: {[d.name for d in departments]}
 
     Filter to only departments relevant to the user's research. Return department names as JSON array.
@@ -211,22 +216,30 @@ async def discover_professors_for_department(department: Department) -> list[Pro
         return await discover_with_playwright_fallback(department)
 ```
 
-**Filtering (Story 3.2 - separate implementation):**
+**Filtering (Story 3.2 - module-level functions):**
 ```python
-async def filter_professor_by_research(professor: Professor, user_profile: UserProfile) -> FilterResult:
-    """LLM-based research field filtering."""
-    options = ClaudeAgentOptions(max_turns=1)
+async def filter_professor_single(
+    professor: Professor,
+    profile_dict: dict[str, str],
+    correlation_id: str
+) -> dict[str, Any]:
+    """LLM-based research field filtering for single professor.
 
-    prompt = f"""
-    Professor Research Areas: {professor.research_areas}
-    User Interests: {user_profile.research_interests}
+    Args:
+        professor: Professor to filter
+        profile_dict: User profile dict with 'research_interests', 'current_degree'
+        correlation_id: Correlation ID for logging
 
-    Confidence score (0-100) for research field match and reasoning.
+    Returns:
+        Dict with 'decision', 'confidence', 'reasoning' fields
     """
+    # Calls llm_helpers.filter_professor_research() with retry logic
+    # Returns {"decision": "include"|"exclude", "confidence": 0-100, "reasoning": str}
+    pass
 
-    async for message in query(prompt=prompt, options=options):
-        # Parse confidence score and reasoning
-        pass
+async def filter_professors(correlation_id: str) -> list[Professor]:
+    """Main orchestration: loads profile, filters all professors in batches."""
+    pass
 ```
 
 ---
@@ -305,13 +318,21 @@ async def fetch_publications(professor: Professor) -> list[Publication]:
 
 **Abstract Analysis:**
 ```python
-async def analyze_abstract_relevance(publication: Publication, user_profile: UserProfile) -> float:
-    """LLM analyzes abstract for research alignment."""
+async def analyze_abstract_relevance(
+    publication: Publication,
+    profile_dict: dict[str, str]
+) -> float:
+    """LLM analyzes abstract for research alignment.
+
+    Args:
+        publication: Publication to analyze
+        profile_dict: User profile dict with 'research_interests'
+    """
     options = ClaudeAgentOptions(max_turns=1)
 
     prompt = f"""
     Abstract: {publication.abstract}
-    User Interests: {user_profile.research_interests}
+    User Interests: {profile_dict['research_interests']}
 
     Relevance score (0-100).
     """
@@ -394,12 +415,17 @@ async def analyze_authorship(lab: Lab, publications: list[Publication]) -> Autho
 
 **Fitness Scoring:**
 ```python
-async def identify_scoring_criteria(user_profile: UserProfile) -> dict[str, float]:
-    """LLM dynamically identifies scoring criteria and weights."""
+async def identify_scoring_criteria(profile_dict: dict[str, str]) -> dict[str, float]:
+    """LLM dynamically identifies scoring criteria and weights.
+
+    Args:
+        profile_dict: User profile dict with research interests and background
+    """
     options = ClaudeAgentOptions(max_turns=1)
 
     prompt = f"""
-    User Profile: {user_profile}
+    User Research Interests: {profile_dict['research_interests']}
+    Degree Program: {profile_dict.get('current_degree', 'General')}
 
     Identify appropriate fitness scoring criteria and weights for lab matching.
     Typical criteria: research alignment, publication quality, position availability, website freshness.
@@ -412,14 +438,24 @@ async def identify_scoring_criteria(user_profile: UserProfile) -> dict[str, floa
         pass
 
 
-async def score_lab(lab: Lab, criteria: dict, user_profile: UserProfile) -> FitnessScore:
-    """Score lab against identified criteria."""
+async def score_lab(
+    lab: Lab,
+    criteria: dict,
+    profile_dict: dict[str, str]
+) -> FitnessScore:
+    """Score lab against identified criteria.
+
+    Args:
+        lab: Lab to score
+        criteria: Dict of criteria names to weights
+        profile_dict: User profile dict with research interests
+    """
     options = ClaudeAgentOptions(max_turns=2)
 
     prompt = f"""
     Lab: {lab.pi_name} - {lab.research_focus}
     Criteria: {criteria}
-    User Profile: {user_profile}
+    User Interests: {profile_dict['research_interests']}
 
     Score this lab (0-100) for each criterion.
     Calculate weighted overall score.

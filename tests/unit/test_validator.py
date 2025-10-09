@@ -58,10 +58,20 @@ def valid_university_config():
 def valid_system_params():
     """Return a valid system parameters configuration."""
     return {
-        "batch_config": {"department_discovery_batch_size": 5, "professor_discovery_batch_size": 10, "professor_filtering_batch_size": 15, "publication_retrieval_batch_size": 20, "linkedin_matching_batch_size": 15},
+        "batch_config": {
+            "department_discovery_batch_size": 5,
+            "professor_discovery_batch_size": 10,
+            "professor_filtering_batch_size": 15,
+            "publication_retrieval_batch_size": 20,
+            "linkedin_matching_batch_size": 15,
+        },
         "rate_limits": {"archive_org": 30, "linkedin": 10, "paper_search": 20},
         "rate_limiting": {"max_concurrent_llm_calls": 5},
-        "filtering_config": {"low_confidence_threshold": 70, "high_confidence_threshold": 90, "borderline_review_enabled": True},
+        "filtering_config": {
+            "low_confidence_threshold": 70,
+            "high_confidence_threshold": 90,
+            "borderline_review_enabled": True,
+        },
         "timeouts": {"web_scraping": 30, "mcp_query": 60},
         "confidence_thresholds": {"professor_filter": 70.0, "linkedin_match": 75.0},
         "publication_years": 3,
@@ -237,7 +247,9 @@ class TestSystemParamsValidation:
 
     def test_batch_size_below_minimum(self, validator, valid_system_params):
         """Test batch size below minimum."""
-        valid_system_params["batch_config"]["department_discovery_batch_size"] = 0  # Min is 1
+        valid_system_params["batch_config"]["department_discovery_batch_size"] = (
+            0  # Min is 1
+        )
 
         with pytest.raises(ConfigurationError) as exc_info:
             validator.validate(valid_system_params, "system_params_schema.json")
@@ -247,7 +259,9 @@ class TestSystemParamsValidation:
 
     def test_batch_size_above_maximum(self, validator, valid_system_params):
         """Test batch size above maximum."""
-        valid_system_params["batch_config"]["department_discovery_batch_size"] = 100  # Max is 99
+        valid_system_params["batch_config"]["department_discovery_batch_size"] = (
+            100  # Max is 99
+        )
 
         with pytest.raises(ConfigurationError) as exc_info:
             validator.validate(valid_system_params, "system_params_schema.json")

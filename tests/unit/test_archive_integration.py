@@ -169,8 +169,7 @@ async def test_query_wayback_snapshots_success(mocker):
     mock_cdx.snapshots.return_value = [mock_snapshot1, mock_snapshot2]
 
     mocker.patch(
-        "src.agents.lab_research.WaybackMachineCDXServerAPI",
-        return_value=mock_cdx
+        "src.agents.lab_research.WaybackMachineCDXServerAPI", return_value=mock_cdx
     )
 
     # Mock rate limiter
@@ -199,7 +198,7 @@ async def test_query_wayback_snapshots_no_records(mocker):
     # Mock WaybackMachineCDXServerAPI to raise NoCDXRecordFound
     mocker.patch(
         "src.agents.lab_research.WaybackMachineCDXServerAPI",
-        side_effect=NoCDXRecordFound
+        side_effect=NoCDXRecordFound,
     )
 
     # Mock rate limiter
@@ -225,8 +224,7 @@ async def test_query_wayback_snapshots_rate_limiting(mocker):
     mock_cdx = Mock()
     mock_cdx.snapshots.return_value = []
     mocker.patch(
-        "src.agents.lab_research.WaybackMachineCDXServerAPI",
-        return_value=mock_cdx
+        "src.agents.lab_research.WaybackMachineCDXServerAPI", return_value=mock_cdx
     )
 
     # Mock rate limiter
@@ -237,7 +235,9 @@ async def test_query_wayback_snapshots_rate_limiting(mocker):
     await query_wayback_snapshots(test_url, correlation_id, years=3)
 
     # Assert
-    mock_rate_limiter.acquire.assert_called_once_with("https://web.archive.org/cdx/search")
+    mock_rate_limiter.acquire.assert_called_once_with(
+        "https://web.archive.org/cdx/search"
+    )
 
 
 @pytest.mark.asyncio
@@ -262,8 +262,7 @@ async def test_query_wayback_snapshots_filters_by_date(mocker):
     mock_cdx = Mock()
     mock_cdx.snapshots.return_value = [mock_snapshot_recent, mock_snapshot_old]
     mocker.patch(
-        "src.agents.lab_research.WaybackMachineCDXServerAPI",
-        return_value=mock_cdx
+        "src.agents.lab_research.WaybackMachineCDXServerAPI", return_value=mock_cdx
     )
 
     # Mock rate limiter
@@ -300,13 +299,24 @@ async def test_enrich_with_archive_data_success(mocker):
     # Mock query_wayback_snapshots
     # Intervals: 45 days, 50 days -> average 47.5 days = monthly
     mock_snapshots = [
-        {"datetime": datetime(2025, 3, 1), "archive_url": "url1", "original_url": lab.lab_url},
-        {"datetime": datetime(2025, 1, 15), "archive_url": "url2", "original_url": lab.lab_url},
-        {"datetime": datetime(2024, 11, 26), "archive_url": "url3", "original_url": lab.lab_url},
+        {
+            "datetime": datetime(2025, 3, 1),
+            "archive_url": "url1",
+            "original_url": lab.lab_url,
+        },
+        {
+            "datetime": datetime(2025, 1, 15),
+            "archive_url": "url2",
+            "original_url": lab.lab_url,
+        },
+        {
+            "datetime": datetime(2024, 11, 26),
+            "archive_url": "url3",
+            "original_url": lab.lab_url,
+        },
     ]
     mocker.patch(
-        "src.agents.lab_research.query_wayback_snapshots",
-        return_value=mock_snapshots
+        "src.agents.lab_research.query_wayback_snapshots", return_value=mock_snapshots
     )
 
     # Act
@@ -362,10 +372,7 @@ async def test_enrich_with_archive_data_no_snapshots_found(mocker):
     correlation_id = "test-corr-id"
 
     # Mock query_wayback_snapshots to return empty list
-    mocker.patch(
-        "src.agents.lab_research.query_wayback_snapshots",
-        return_value=[]
-    )
+    mocker.patch("src.agents.lab_research.query_wayback_snapshots", return_value=[])
 
     # Act
     enriched_lab = await enrich_with_archive_data(lab, correlation_id)
@@ -394,7 +401,7 @@ async def test_enrich_with_archive_data_api_failure(mocker):
     # Mock query_wayback_snapshots to raise exception
     mocker.patch(
         "src.agents.lab_research.query_wayback_snapshots",
-        side_effect=Exception("API Error")
+        side_effect=Exception("API Error"),
     )
 
     # Act
@@ -423,13 +430,24 @@ async def test_enrich_with_archive_data_sorts_snapshots(mocker):
 
     # Mock query_wayback_snapshots with unsorted dates
     mock_snapshots = [
-        {"datetime": datetime(2025, 2, 1), "archive_url": "url2", "original_url": lab.lab_url},
-        {"datetime": datetime(2025, 3, 1), "archive_url": "url1", "original_url": lab.lab_url},
-        {"datetime": datetime(2025, 1, 1), "archive_url": "url3", "original_url": lab.lab_url},
+        {
+            "datetime": datetime(2025, 2, 1),
+            "archive_url": "url2",
+            "original_url": lab.lab_url,
+        },
+        {
+            "datetime": datetime(2025, 3, 1),
+            "archive_url": "url1",
+            "original_url": lab.lab_url,
+        },
+        {
+            "datetime": datetime(2025, 1, 1),
+            "archive_url": "url3",
+            "original_url": lab.lab_url,
+        },
     ]
     mocker.patch(
-        "src.agents.lab_research.query_wayback_snapshots",
-        return_value=mock_snapshots
+        "src.agents.lab_research.query_wayback_snapshots", return_value=mock_snapshots
     )
 
     # Act
@@ -531,11 +549,14 @@ async def test_enrich_with_archive_data_single_snapshot(mocker):
 
     # Mock query_wayback_snapshots with single snapshot
     mock_snapshots = [
-        {"datetime": datetime(2025, 1, 1), "archive_url": "url1", "original_url": lab.lab_url},
+        {
+            "datetime": datetime(2025, 1, 1),
+            "archive_url": "url1",
+            "original_url": lab.lab_url,
+        },
     ]
     mocker.patch(
-        "src.agents.lab_research.query_wayback_snapshots",
-        return_value=mock_snapshots
+        "src.agents.lab_research.query_wayback_snapshots", return_value=mock_snapshots
     )
 
     # Act

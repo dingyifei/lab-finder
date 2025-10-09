@@ -141,9 +141,7 @@ async def test_generate_filter_report(tmp_path, sample_professors_mixed, mocker)
     mocker.patch("src.agents.professor_reporting.get_logger")
 
     # Act
-    await generate_filter_report(
-        sample_professors_mixed, str(tmp_path), "test-corr-id"
-    )
+    await generate_filter_report(sample_professors_mixed, str(tmp_path), "test-corr-id")
 
     # Assert
     report_path = tmp_path / "filtered-professors.md"
@@ -237,9 +235,7 @@ async def test_cross_reference_borderline_report(tmp_path, sample_professors_mix
     borderline_file.write_text("# Borderline Professors\nSample content")
 
     # Act
-    await generate_filter_report(
-        sample_professors_mixed, str(tmp_path), "test-corr-id"
-    )
+    await generate_filter_report(sample_professors_mixed, str(tmp_path), "test-corr-id")
 
     # Assert
     report_path = tmp_path / "filtered-professors.md"
@@ -260,9 +256,7 @@ async def test_report_markdown_formatting(tmp_path, sample_professors_mixed):
     Story 3.4: Task 2
     """
     # Act
-    await generate_filter_report(
-        sample_professors_mixed, str(tmp_path), "test-corr-id"
-    )
+    await generate_filter_report(sample_professors_mixed, str(tmp_path), "test-corr-id")
 
     # Assert
     report_path = tmp_path / "filtered-professors.md"
@@ -557,9 +551,7 @@ async def test_apply_manual_additions_no_match(sample_professor_included, mocker
     """
     # Arrange
     professors = [sample_professor_included]
-    additions = {
-        "additions": [{"professor_id": "prof-999", "reason": "Test"}]
-    }
+    additions = {"additions": [{"professor_id": "prof-999", "reason": "Test"}]}
 
     # Mock logger
     mocker.patch("src.agents.professor_reporting.get_logger")
