@@ -3,6 +3,7 @@ Lab Model
 
 Pydantic model for lab website data and metadata.
 Story 4.1: Task 2
+Story 4.2: Task 1 (Archive.org fields)
 """
 
 import hashlib
@@ -10,6 +11,22 @@ from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, Field
+
+
+# Data quality flag constants (Stories 4.1, 4.2)
+LAB_DATA_QUALITY_FLAGS = {
+    # Story 4.1 flags
+    "no_website",              # No lab website URL found
+    "scraping_failed",         # Website scraping failed
+    "playwright_fallback",     # WebFetch failed, used Playwright
+    "missing_description",     # No description found
+    "missing_research_focus",  # No research focus/areas found
+    "missing_news",            # No news/updates found
+    "missing_last_updated",    # No last updated date found
+    # Story 4.2 flags (Archive.org)
+    "no_archive_data",         # No snapshots found in Wayback Machine
+    "archive_query_failed",    # Archive.org API query failed
+}
 
 
 class Lab(BaseModel):
@@ -40,6 +57,17 @@ class Lab(BaseModel):
     )
     data_quality_flags: list[str] = Field(
         default_factory=list, description="Quality issues"
+    )
+    # Archive.org fields (Story 4.2)
+    last_wayback_snapshot: Optional[datetime] = Field(
+        None, description="Most recent Archive.org snapshot date"
+    )
+    wayback_snapshots: list[datetime] = Field(
+        default_factory=list, description="Snapshot dates over past 3 years"
+    )
+    update_frequency: str = Field(
+        default="unknown",
+        description="Website update frequency (weekly/monthly/quarterly/yearly/stale/unknown)"
     )
 
     @staticmethod

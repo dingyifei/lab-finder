@@ -3,6 +3,7 @@ Lab Research Agent
 
 Discovers and scrapes lab websites for content and metadata.
 Story 4.1: Epic 4 (Lab Intelligence)
+Story 4.2: Archive.org integration
 """
 
 import json
@@ -19,25 +20,22 @@ from tenacity import (
     retry,
     stop_after_attempt,
     wait_exponential,
+    retry_if_exception_type,
 )
+from waybackpy import WaybackMachineCDXServerAPI
+from waybackpy.exceptions import NoCDXRecordFound
 
 from src.models.lab import Lab
 from src.models.professor import Professor
 from src.models.config import SystemParams
 from src.utils.logger import get_logger
 from src.utils.checkpoint_manager import CheckpointManager
+from src.agents.professor_filter import DomainRateLimiter
 
 
-# Data quality flags for lab records
-LAB_DATA_QUALITY_FLAGS = {
-    "no_website",  # No lab URL found
-    "scraping_failed",  # Web scraping failed
-    "playwright_fallback",  # Used Playwright instead of built-in tools
-    "missing_last_updated",  # No last updated date found
-    "missing_description",  # No description extracted
-    "missing_research_focus",  # No research focus found
-    "missing_news",  # No news/updates found
-}
+# Archive.org rate limiter (Story 4.2: Task 3)
+# Conservative rate: 15 req/min to avoid 429 responses
+rate_limiter = DomainRateLimiter(default_rate=15.0, time_period=60.0)
 
 
 def validate_url(url: str) -> bool:
@@ -630,6 +628,9 @@ async def process_single_lab(
             news_updates=[],
             website_content="",
             data_quality_flags=data_quality_flags,
+            last_wayback_snapshot=None,
+            wayback_snapshots=[],
+            update_frequency="unknown",
         )
 
     # Scrape lab website
@@ -643,7 +644,7 @@ async def process_single_lab(
             lab_url=lab_url
         )
 
-        return Lab(
+        lab = Lab(
             id=lab_id,
             professor_id=professor.id,
             professor_name=professor.name,
@@ -656,7 +657,14 @@ async def process_single_lab(
             news_updates=scraped_data["news_updates"],
             website_content=scraped_data["website_content"],
             data_quality_flags=data_quality_flags,
+            last_wayback_snapshot=None,
+            wayback_snapshots=[],
+            update_frequency="unknown",
         )
+
+        # Story 4.2: Enrich with Archive.org data
+        lab = await enrich_with_archive_data(lab, correlation_id)
+        return lab
 
     except Exception as e:
         logger.error(
@@ -667,7 +675,7 @@ async def process_single_lab(
         )
         data_quality_flags.append("scraping_failed")
 
-        return Lab(
+        lab = Lab(
             id=lab_id,
             professor_id=professor.id,
             professor_name=professor.name,
@@ -680,7 +688,210 @@ async def process_single_lab(
             news_updates=[],
             website_content="",
             data_quality_flags=data_quality_flags,
+            last_wayback_snapshot=None,
+            wayback_snapshots=[],
+            update_frequency="unknown",
         )
+
+        # Story 4.2: Try to enrich with Archive.org data even if scraping failed
+        lab = await enrich_with_archive_data(lab, correlation_id)
+        return lab
+
+
+def calculate_update_frequency(snapshots: list[datetime]) -> str:
+    """Calculate website update frequency from snapshot dates.
+
+    Analyzes intervals between snapshots to determine update frequency.
+
+    Args:
+        snapshots: List of snapshot datetime objects (sorted chronologically)
+
+    Returns:
+        Frequency category: "weekly", "monthly", "quarterly", "yearly", "stale", or "unknown"
+
+    Story 4.2: Task 8
+    """
+    if len(snapshots) < 2:
+        return "unknown"
+
+    # Calculate intervals between consecutive snapshots
+    intervals = []
+    for i in range(1, len(snapshots)):
+        delta = (snapshots[i] - snapshots[i-1]).days
+        intervals.append(delta)
+
+    # Calculate average interval
+    avg_interval = sum(intervals) / len(intervals)
+
+    # Classify based on average interval
+    if avg_interval < 30:
+        return "weekly"
+    elif avg_interval < 90:
+        return "monthly"
+    elif avg_interval < 180:
+        return "quarterly"
+    elif avg_interval < 545:
+        return "yearly"
+    else:
+        return "stale"
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    retry=retry_if_exception_type(Exception)
+)
+async def query_wayback_snapshots(
+    url: str,
+    correlation_id: str,
+    years: int = 3
+) -> list[dict[str, Any]]:
+    """Query Wayback Machine API for snapshot history.
+
+    Args:
+        url: Website URL to query
+        correlation_id: Correlation ID for logging
+        years: Number of years to look back (default: 3)
+
+    Returns:
+        List of snapshot dictionaries with 'datetime' and 'archive_url' keys
+
+    Raises:
+        Exception: If API query fails after retries
+
+    Story 4.2: Task 5
+    """
+    logger = get_logger(
+        correlation_id=correlation_id,
+        phase="phase-4-labs",
+        component="archive-integration"
+    )
+
+    # Apply rate limiting before API request (Task 3)
+    await rate_limiter.acquire("https://web.archive.org/cdx/search")
+    logger.debug("Rate limit applied for Archive.org")
+
+    try:
+        # Initialize Wayback Machine CDX API
+        cdx = WaybackMachineCDXServerAPI(
+            url=url,
+            user_agent="LabFinder/1.0 (Research Lab Discovery)"
+        )
+
+        # Get snapshots from past N years
+        from_date = datetime.now().replace(year=datetime.now().year - years)
+
+        snapshots_list = []
+        for snapshot in cdx.snapshots():
+            # Filter to requested time range
+            if snapshot.datetime_timestamp >= from_date:
+                snapshots_list.append({
+                    'datetime': snapshot.datetime_timestamp,
+                    'archive_url': snapshot.archive_url,
+                    'original_url': snapshot.original
+                })
+
+        logger.info(
+            "Archive.org query successful",
+            url=url,
+            snapshots_found=len(snapshots_list)
+        )
+        return snapshots_list
+
+    except NoCDXRecordFound:
+        # No archived versions found (Task 4: Handle Missing Archive Data)
+        logger.info("No Archive.org snapshots found", url=url)
+        return []
+
+    except Exception as e:
+        logger.error(
+            "Archive.org API query failed",
+            url=url,
+            error=str(e)
+        )
+        raise  # Will trigger retry via @retry decorator
+
+
+async def enrich_with_archive_data(lab: Lab, correlation_id: str) -> Lab:
+    """Enrich lab record with Archive.org website history data.
+
+    Queries Wayback Machine for:
+    - Most recent snapshot date
+    - Snapshot history over past 3 years
+    - Calculated update frequency
+
+    Args:
+        lab: Lab record to enrich
+        correlation_id: Correlation ID for logging
+
+    Returns:
+        Lab record with archive fields populated
+
+    Story 4.2: Task 9
+    """
+    logger = get_logger(
+        correlation_id=correlation_id,
+        phase="phase-4-labs",
+        component="archive-integration"
+    )
+
+    # Skip if lab has no website
+    if not lab.lab_url:
+        return lab
+
+    try:
+        # Query Wayback snapshots (Tasks 5, 6, 7)
+        snapshots = await query_wayback_snapshots(
+            url=lab.lab_url,
+            correlation_id=correlation_id,
+            years=3
+        )
+
+        # Handle case with no archive data (Task 4)
+        if not snapshots:
+            lab.data_quality_flags.append("no_archive_data")
+            logger.info(
+                "No archive data available",
+                lab_url=lab.lab_url,
+                lab_name=lab.lab_name
+            )
+            return lab
+
+        # Extract snapshot dates
+        snapshot_dates = [s['datetime'] for s in snapshots]
+        snapshot_dates.sort()  # Ensure chronological order
+
+        # Task 6: Find most recent snapshot
+        lab.last_wayback_snapshot = snapshot_dates[-1] if snapshot_dates else None
+
+        # Task 7: Store 3-year snapshot history
+        lab.wayback_snapshots = snapshot_dates
+
+        # Task 8: Calculate update frequency
+        lab.update_frequency = calculate_update_frequency(snapshot_dates)
+
+        logger.info(
+            "Archive data enrichment complete",
+            lab_url=lab.lab_url,
+            lab_name=lab.lab_name,
+            snapshots_count=len(snapshot_dates),
+            update_frequency=lab.update_frequency,
+            last_snapshot=lab.last_wayback_snapshot.isoformat() if lab.last_wayback_snapshot else None
+        )
+
+        return lab
+
+    except Exception as e:
+        # Task 4: Handle API failures gracefully
+        lab.data_quality_flags.append("archive_query_failed")
+        logger.error(
+            "Archive.org query failed for lab",
+            lab_url=lab.lab_url,
+            lab_name=lab.lab_name,
+            error=str(e)
+        )
+        # Return lab with failure flag, don't block processing
+        return lab
 
 
 async def discover_and_scrape_labs_batch() -> list[Lab]:
@@ -824,6 +1035,9 @@ async def discover_and_scrape_labs_batch() -> list[Lab]:
                     lab_url=None,
                     last_updated=None,
                     data_quality_flags=["scraping_failed"],
+                    last_wayback_snapshot=None,
+                    wayback_snapshots=[],
+                    update_frequency="unknown",
                 )
                 batch_labs.append(lab)
                 processed_count += 1

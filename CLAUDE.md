@@ -279,6 +279,7 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 
 **Epic 4: Lab Intelligence (IN PROGRESS)**
 - Story 4.1 complete - Lab website discovery & scraping (95/100 QA score) ✅
+- Story 4.2 complete - Archive.org integration for website history (95/100 QA score) ✅
 
 ### Key Insights
 
@@ -340,6 +341,19 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 - Testing: 31 comprehensive tests (4 unit Lab + 21 unit agent + 6 integration), Lab model 100% coverage, agent 62% coverage
 - QA score: 95/100 - production-ready, excellent code quality
 
+**Epic 4 (Story 4.2):**
+- Archive.org integration: Wayback Machine CDX API integration for website history analysis (3-year window)
+- Update frequency calculation: Analyzes snapshot intervals to classify frequency (weekly/monthly/quarterly/yearly/stale/unknown)
+- Rate limiting: DomainRateLimiter integration with conservative 15 req/min limit prevents API throttling
+- Retry logic: Exponential backoff (3 attempts, 1-10s delays) with proper exception handling
+- Data model: Extended Lab model with 3 archive fields (last_wayback_snapshot, wayback_snapshots, update_frequency)
+- Data quality tracking: Added 2 new flags (no_archive_data, archive_query_failed) to LAB_DATA_QUALITY_FLAGS constant
+- Graceful degradation: Missing archive data doesn't block processing, API failures handled with quality flags
+- Integration pattern: Archive enrichment runs per-lab within Story 4.1 batches (not separate batches), respects rate limits
+- Snapshot filtering: Client-side 3-year window filtering with chronological sorting for efficient processing
+- Testing: 21 comprehensive tests covering all 7 ACs, edge cases, boundary conditions, error scenarios
+- QA score: 95/100 - production-ready, exceptional code quality
+
 **Epic 3 (Story 3.5):**
 - Batch processing: Parallel LLM calls within batches using asyncio.Semaphore for rate limiting
 - Configuration: Added `professor_filtering_batch_size` (default: 15) and `max_concurrent_llm_calls` (default: 5, max: 20) to SystemParams
@@ -394,9 +408,9 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 
 ### Current Environment
 
-**Working Components:** Validation, credential management, checkpoints, logging, LLM helpers, progress tracking, MCP client, profile consolidation, university discovery, department filtering, professor model, professor discovery, parallel professor discovery, deduplication, rate limiting, professor filtering, confidence scoring, filtered professor logging, batch processing, lab website discovery, lab website scraping
+**Working Components:** Validation, credential management, checkpoints, logging, LLM helpers, progress tracking, MCP client, profile consolidation, university discovery, department filtering, professor model, professor discovery, parallel professor discovery, deduplication, rate limiting, professor filtering, confidence scoring, filtered professor logging, batch processing, lab website discovery, lab website scraping, archive.org integration
 
-**Test Status:** 424 tests passing (255 from Epics 1-2 + 138 from Epic 3 + 31 from Story 4.1), ruff ✅, mypy ✅
+**Test Status:** 445 tests passing (255 from Epics 1-2 + 138 from Epic 3 + 31 from Story 4.1 + 21 from Story 4.2), ruff ✅, mypy ✅
 
 ## Documentation References
 
