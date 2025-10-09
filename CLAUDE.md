@@ -268,7 +268,7 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 - Story 2.4 complete - Error handling (100/100 QA score)
 - Story 2.5 complete - Batch configuration
 
-**Epic 3: Professor Discovery (IN PROGRESS)**
+**Epic 3: Professor Discovery (COMPLETE)**
 - Story 3.1a complete - Professor model + basic discovery (100/100 QA score) ✅
 - Story 3.1b complete - Parallel processing + batch coordination (90/100 QA score) ✅
 - Story 3.1c complete - Deduplication + rate limiting + checkpointing (95/100 QA score) ✅
@@ -276,6 +276,9 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 - Story 3.3 complete - Confidence scoring (95/100 QA score) ✅
 - Story 3.4 complete - Filtered professor logging (95/100 QA score) ✅
 - Story 3.5 complete - Batch processing for professor analysis (100/100 QA score) ✅
+
+**Epic 4: Lab Intelligence (IN PROGRESS)**
+- Story 4.1 complete - Lab website discovery & scraping (95/100 QA score) ✅
 
 ### Key Insights
 
@@ -321,6 +324,20 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 - Data quality flag: Added `manual_addition` to PROFESSOR_DATA_QUALITY_FLAGS
 - UTF-8 encoding: Applied throughout for Windows cross-platform compatibility
 - Testing: 17 comprehensive tests (100% AC coverage), all edge cases covered, ruff ✅, mypy ✅
+- QA score: 95/100 - production-ready, excellent code quality
+
+**Epic 4 (Story 4.1):**
+- Lab website discovery: Discovers lab URLs from professor records with defensive validation
+- Web scraping: ClaudeSDKClient with WebFetch tool for content extraction, Playwright fallback for JS-heavy sites
+- Content extraction: Extracts description, research focus, news/updates, last updated date using BeautifulSoup
+- Lab model: Pydantic model with SHA256 ID generation (professor_id:lab_name), all fields typed and validated
+- Graceful degradation: Missing websites don't block processing, creates minimal Lab record with "no_website" flag
+- Checkpoint resumability: Batch-based checkpointing at phase-4-labs-batch-N.jsonl
+- Progress tracking: Integrated ProgressTracker with two-level updates (batch + item)
+- Data quality tracking: Flags for no_website, scraping_failed, playwright_fallback, missing_description, missing_research_focus, missing_news, missing_last_updated
+- Batch processing: Configurable batch sizes (default: 10 labs), resume from last completed batch
+- Error handling: Retry logic (3 attempts, exponential backoff 1-10s), 30s timeout per page, graceful failure handling
+- Testing: 31 comprehensive tests (4 unit Lab + 21 unit agent + 6 integration), Lab model 100% coverage, agent 62% coverage
 - QA score: 95/100 - production-ready, excellent code quality
 
 **Epic 3 (Story 3.5):**
@@ -371,15 +388,15 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 
 ### Next Steps
 
-**Immediate:** Epic 4 (Lab Intelligence) - Lab website scraping and analysis
+**Immediate:** Continue Epic 4 (Lab Intelligence) - Lab analysis and LinkedIn integration
 
 **Following:** Epics 5&6 (parallel: Publications + LinkedIn) → Epic 7 (Fitness) → Epic 8 (Reports)
 
 ### Current Environment
 
-**Working Components:** Validation, credential management, checkpoints, logging, LLM helpers, progress tracking, MCP client, profile consolidation, university discovery, department filtering, professor model, professor discovery, parallel professor discovery, deduplication, rate limiting, professor filtering, confidence scoring, filtered professor logging, batch processing
+**Working Components:** Validation, credential management, checkpoints, logging, LLM helpers, progress tracking, MCP client, profile consolidation, university discovery, department filtering, professor model, professor discovery, parallel professor discovery, deduplication, rate limiting, professor filtering, confidence scoring, filtered professor logging, batch processing, lab website discovery, lab website scraping
 
-**Test Status:** 393 tests passing (255 from Epics 1-2 + 24 from Stories 3.1a+3.1b+3.1c + 15 from Story 3.2 + 32 from Story 3.3 + 17 from Story 3.4 + 9 from Story 3.5 + 41 regression tests updated), ruff ✅, mypy ✅
+**Test Status:** 424 tests passing (255 from Epics 1-2 + 138 from Epic 3 + 31 from Story 4.1), ruff ✅, mypy ✅
 
 ## Documentation References
 

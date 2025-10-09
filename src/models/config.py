@@ -15,6 +15,7 @@ class BatchConfig(BaseModel):
     department_discovery_batch_size: int = Field(default=5, gt=0, lt=100)
     professor_discovery_batch_size: int = Field(default=10, gt=0, lt=100)
     professor_filtering_batch_size: int = Field(default=15, gt=0, lt=100)
+    lab_discovery_batch_size: int = Field(default=10, gt=0, lt=100)
     publication_retrieval_batch_size: int = Field(default=20, gt=0, lt=100)
     linkedin_matching_batch_size: int = Field(default=15, gt=0, lt=100)
 
@@ -22,6 +23,7 @@ class BatchConfig(BaseModel):
         "department_discovery_batch_size",
         "professor_discovery_batch_size",
         "professor_filtering_batch_size",
+        "lab_discovery_batch_size",
         "publication_retrieval_batch_size",
         "linkedin_matching_batch_size",
     )
