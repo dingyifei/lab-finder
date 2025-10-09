@@ -20,11 +20,13 @@ LAB_DATA_QUALITY_FLAGS = {
     # Story 4.1 flags
     "no_website",  # No lab website URL found
     "scraping_failed",  # Website scraping failed
-    "playwright_fallback",  # WebFetch failed, used Playwright
+    "puppeteer_mcp_used",  # WebFetch failed, used Puppeteer MCP fallback
     "missing_description",  # No description found
     "missing_research_focus",  # No research focus/areas found
     "missing_news",  # No news/updates found
     "missing_last_updated",  # No last updated date found
+    "missing_people_info",  # No lab members found
+    "missing_publications",  # No publications found
     # Story 4.2 flags (Archive.org)
     "no_archive_data",  # No snapshots found in Wayback Machine
     "archive_query_failed",  # Archive.org API query failed
@@ -42,6 +44,9 @@ LAB_DATA_QUALITY_FLAGS = {
     "using_publication_data",  # Relying on publications due to missing/stale website
     "members_will_be_inferred",  # Lab members will be inferred from co-authorship (Story 5.5)
     "status_detection_failed",  # Error occurred during status detection
+    # Story 4.5 flags (Multi-stage scraping)
+    "insufficient_webfetch",  # WebFetch didn't provide sufficient data
+    "sufficiency_evaluation_failed",  # Sufficiency evaluation raised exception
 }
 
 
@@ -70,6 +75,14 @@ class Lab(BaseModel):
     )
     website_content: str = Field(
         default="", description="Full text content (for analysis)"
+    )
+    lab_members: list[str] = Field(
+        default_factory=list,
+        description="Lab members (PI, postdocs, PhD students, staff)"
+    )
+    publications_list: list[str] = Field(
+        default_factory=list,
+        description="Recent publications (titles, links, or citations)"
     )
     data_quality_flags: list[str] = Field(
         default_factory=list, description="Quality issues"
