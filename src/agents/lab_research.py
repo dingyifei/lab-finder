@@ -15,9 +15,6 @@ from typing import Optional, Any
 from urllib.parse import urlparse, urljoin
 
 from bs4 import BeautifulSoup
-from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
-from claude_agent_sdk.types import AssistantMessage, TextBlock
-from playwright.async_api import async_playwright
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -33,6 +30,8 @@ from src.models.config import SystemParams
 from src.utils.logger import get_logger
 from src.utils.checkpoint_manager import CheckpointManager
 from src.utils.rate_limiter import DomainRateLimiter
+from pathlib import Path
+from src.utils.web_scraping import scrape_with_sufficiency
 
 
 # Archive.org rate limiter (Story 4.2: Task 3)
@@ -103,27 +102,41 @@ def discover_lab_website(professor: Professor) -> Optional[str]:
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
 async def scrape_lab_website(lab_url: str, correlation_id: str) -> dict[str, Any]:
-    """Scrape lab website for content and metadata.
+    """Scrape lab website for 5 data categories using multi-stage pattern.
 
-    Uses built-in web tools first, falls back to Playwright if needed.
+    Uses Story 4.5 multi-stage pattern: WebFetch → Sufficiency → Puppeteer MCP.
+
+    Categories extracted (Story 4.1 v1.1):
+    1. lab_information - Description, mission, overview, news
+    2. contact - Emails, forms, application URLs
+    3. people - Lab members, roles
+    4. research_focus - Research areas/topics
+    5. publications - Recent papers
 
     Args:
         lab_url: Lab website URL
         correlation_id: Correlation ID for logging
 
     Returns:
-        Dictionary with extracted content:
-        - description: Lab overview/description
-        - research_focus: List of research areas
-        - news_updates: List of recent news items
-        - website_content: Full page text
-        - last_updated: Last update date (if found)
-        - data_quality_flags: List of quality issues
+        Dictionary with 5 categories + metadata:
+        - description (str)
+        - news_updates (list[str])
+        - last_updated (Optional[datetime])
+        - contact_emails (list[str])
+        - contact_form_url (Optional[str])
+        - application_url (Optional[str])
+        - lab_members (list[str])
+        - research_focus (list[str])
+        - publications_list (list[str])
+        - website_content (str)
+        - data_quality_flags (list[str])
 
     Raises:
         Exception: If scraping fails after retries
 
-    Story 4.1: Task 4
+    Story 4.1 v1.1: Tasks 4, 5, 6, 7 (5-category extraction)
+    Story 4.3: Contact extraction integration
+    Story 4.5 v0.5: Multi-stage pattern
     """
     logger = get_logger(
         correlation_id=correlation_id,
@@ -131,114 +144,127 @@ async def scrape_lab_website(lab_url: str, correlation_id: str) -> dict[str, Any
         component="lab-research-agent",
     )
 
-    # Configure Claude Agent SDK with web scraping tools
-    options = ClaudeAgentOptions(
-        allowed_tools=["WebFetch"],
-        max_turns=2,
-        system_prompt=(
-            "You are a web scraping assistant specialized in extracting "
-            "research lab website content and metadata."
-        ),
-        setting_sources=None,  # CRITICAL: Prevents codebase context injection
-    )
-
-    prompt = f"""
-Scrape the lab website at: {lab_url}
-
-Extract the following information:
-1. Lab description/overview - main description of the lab's purpose and focus
-2. Research focus areas - list of research topics/areas/themes
-3. Recent news/updates - headlines or summaries of recent news items (last 5-10)
-4. Last updated date - if available in metadata, footer, or "last modified" text
-5. Full page text content - all visible text for analysis
-
-Return results as a JSON object with this format:
-{{
-  "description": "Lab overview text here",
-  "research_focus": ["Area 1", "Area 2", "Area 3"],
-  "news_updates": ["News 1", "News 2", "News 3"],
-  "last_updated": "2025-10-01" or null if not found,
-  "website_content": "Full page text content"
-}}
-
-Look for common selectors:
-- Description: .lab-overview, #about, .description, section.about
-- Research: .research-areas, #research, .focus, .topics
-- News: .news, .updates, #latest, section.news
-- Last Updated: meta[name='last-modified'], .last-updated, footer
-"""
+    # Define required fields (5 categories per Story 4.1 v1.1)
+    required_fields = [
+        "lab_information",
+        "contact",
+        "people",
+        "research_focus",
+        "publications",
+    ]
 
     try:
-        # Use ClaudeSDKClient for web scraping
-        async with ClaudeSDKClient(options=options) as client:
-            await client.query(prompt)
-            full_response = ""
-            async for message in client.receive_response():
-                if isinstance(message, AssistantMessage):
-                    for block in message.content:
-                        if isinstance(block, TextBlock):
-                            full_response += block.text
+        # Use multi-stage scraping (Story 4.5)
+        result = await scrape_with_sufficiency(
+            url=lab_url,
+            required_fields=required_fields,
+            max_attempts=3,
+            correlation_id=correlation_id,
+        )
 
-        # Parse JSON response
-        parsed_data = parse_lab_content(full_response)
+        # result["data"] is already a dict from scrape_with_sufficiency
+        # If it's a string (JSON), parse it; otherwise use directly
+        scraped_content = result["data"]
+        if isinstance(scraped_content, str):
+            parsed_data = parse_lab_content(scraped_content)
+        else:
+            parsed_data = scraped_content
 
-        # Extract last_updated if present
+        # Extract data with category-based fallbacks
+        lab_info = parsed_data.get("lab_information", {})
+        contact_info = parsed_data.get("contact", {})
+        people_info = parsed_data.get("people", [])
+        research_focus = parsed_data.get("research_focus", [])
+        publications = parsed_data.get("publications", [])
+
+        # Extract last_updated from lab_information
         last_updated = None
-        if parsed_data.get("last_updated"):
-            last_updated = parse_date_string(str(parsed_data["last_updated"]))
+        if isinstance(lab_info, dict) and lab_info.get("last_updated"):
+            last_updated = parse_date_string(str(lab_info["last_updated"]))
 
-        data_quality_flags: list[str] = []
+        # Start with scraping result flags
+        flags_from_result = result.get("data_quality_flags", [])
+        data_quality_flags: list[str] = list(flags_from_result) if isinstance(flags_from_result, list) else []
 
-        # Add quality flags for missing data
-        description = str(parsed_data.get("description", ""))
-        research_focus = (
-            parsed_data.get("research_focus", [])
-            if isinstance(parsed_data.get("research_focus"), list)
-            else []
-        )
-        news_updates = (
-            parsed_data.get("news_updates", [])
-            if isinstance(parsed_data.get("news_updates"), list)
-            else []
-        )
-        website_content = str(parsed_data.get("website_content", ""))
-
-        if not description:
+        # Add category-specific quality flags
+        if not lab_info or not lab_info.get("description"):
             data_quality_flags.append("missing_description")
+        if not contact_info:
+            data_quality_flags.append("no_contact_info")
+        if not people_info:
+            data_quality_flags.append("missing_people_info")
         if not research_focus:
             data_quality_flags.append("missing_research_focus")
-        if not news_updates:
-            data_quality_flags.append("missing_news")
+        if not publications:
+            data_quality_flags.append("missing_publications")
         if not last_updated:
             data_quality_flags.append("missing_last_updated")
 
-        result = {
-            "description": description,
-            "research_focus": research_focus,
-            "news_updates": news_updates,
-            "website_content": website_content,
+        # Build return dictionary with all 5 categories
+        return_data = {
+            # Category 1: lab_information
+            "description": lab_info.get("description", "") if isinstance(lab_info, dict) else "",
+            "news_updates": lab_info.get("news", []) if isinstance(lab_info, dict) else [],
             "last_updated": last_updated,
+
+            # Category 2: contact (Story 4.3 integration)
+            "contact_emails": contact_info.get("emails", []) if isinstance(contact_info, dict) else [],
+            "contact_form_url": contact_info.get("contact_form") if isinstance(contact_info, dict) else None,
+            "application_url": contact_info.get("application_url") if isinstance(contact_info, dict) else None,
+
+            # Category 3: people
+            "lab_members": people_info if isinstance(people_info, list) else [],
+
+            # Category 4: research_focus
+            "research_focus": research_focus if isinstance(research_focus, list) else [],
+
+            # Category 5: publications
+            "publications_list": publications if isinstance(publications, list) else [],
+
+            # Other
+            "website_content": str(scraped_content) if isinstance(scraped_content, dict) else scraped_content,
             "data_quality_flags": data_quality_flags,
         }
 
-        logger.info("Lab website scraped successfully", lab_url=lab_url)
-        return result
+        logger.info(
+            "Lab website scraped (multi-stage, 5 categories)",
+            lab_url=lab_url,
+            categories_extracted=5,
+            data_quality_flags=data_quality_flags,
+        )
+
+        return return_data
 
     except Exception as e:
-        logger.warning("WebFetch failed, falling back to Playwright", error=str(e))
-        return await scrape_with_playwright_fallback(lab_url, correlation_id)
+        logger.error("Multi-stage scraping failed", lab_url=lab_url, error=str(e))
+        raise  # Will trigger retry via @retry decorator
 
 
 def parse_lab_content(response_text: str) -> dict[str, Any]:
-    """Parse JSON from Claude's response text.
+    """Parse JSON from Claude's response text for 5 data categories.
 
-    Extracts JSON object from response, handling markdown code blocks.
+    Expected JSON structure (Story 4.1 v1.1):
+    {
+      "lab_information": {
+        "description": "...",
+        "news": ["...", "..."],
+        "last_updated": "YYYY-MM-DD"
+      },
+      "contact": {
+        "emails": ["...", "..."],
+        "contact_form": "URL",
+        "application_url": "URL"
+      },
+      "people": ["Name (Role)", "Name (Role)", ...],
+      "research_focus": ["Area 1", "Area 2", ...],
+      "publications": ["Title 1", "Title 2", ...]
+    }
 
     Args:
-        response_text: Response text from Claude
+        response_text: Response text from Claude or scraped content
 
     Returns:
-        Parsed data dictionary
+        Parsed data dictionary with 5 categories
 
     Raises:
         ValueError: If JSON cannot be parsed
@@ -256,7 +282,10 @@ def parse_lab_content(response_text: str) -> dict[str, Any]:
             raise ValueError("No JSON object found in response")
 
     try:
-        return json.loads(json_str)
+        parsed = json.loads(json_str)
+        # Return parsed data (may be missing some categories - handled by caller)
+        return parsed
+
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON in response: {e}")
 
@@ -281,82 +310,6 @@ def parse_date_string(date_str: str) -> Optional[datetime]:
         return date_parser.parse(date_str)
     except (ValueError, TypeError):
         return None
-
-
-async def scrape_with_playwright_fallback(
-    lab_url: str, correlation_id: str
-) -> dict[str, Any]:
-    """Fallback to Playwright when WebFetch fails.
-
-    Args:
-        lab_url: Lab website URL
-        correlation_id: Correlation ID for logging
-
-    Returns:
-        Dictionary with scraped content and playwright_fallback flag
-
-    Raises:
-        Exception: If Playwright also fails
-    """
-    logger = get_logger(
-        correlation_id=correlation_id,
-        phase="phase-4-labs",
-        component="lab-research-agent",
-    )
-    logger.info("Using Playwright fallback", lab_url=lab_url)
-
-    try:
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
-
-            # Set timeout to 30 seconds
-            await page.goto(lab_url, timeout=30000, wait_until="networkidle")
-            html_content = await page.content()
-            text_content = await page.inner_text("body")
-
-            await browser.close()
-
-            # Extract content from HTML
-            description = extract_lab_description(html_content)
-            research_focus = extract_research_focus(html_content)
-            news_updates = extract_news_updates(html_content)
-            last_updated = extract_last_updated(html_content)
-
-            data_quality_flags = ["playwright_fallback"]
-
-            # Add quality flags for missing data
-            if not description:
-                data_quality_flags.append("missing_description")
-            if not research_focus:
-                data_quality_flags.append("missing_research_focus")
-            if not news_updates:
-                data_quality_flags.append("missing_news")
-            if not last_updated:
-                data_quality_flags.append("missing_last_updated")
-
-            result = {
-                "description": description,
-                "research_focus": research_focus,
-                "news_updates": news_updates,
-                "website_content": text_content,
-                "last_updated": last_updated,
-                "data_quality_flags": data_quality_flags,
-            }
-
-            logger.info("Playwright fallback successful", lab_url=lab_url)
-            return result
-
-    except Exception as e:
-        logger.error("Playwright fallback failed", lab_url=lab_url, error=str(e))
-        return {
-            "description": "",
-            "research_focus": [],
-            "news_updates": [],
-            "website_content": "",
-            "last_updated": None,
-            "data_quality_flags": ["scraping_failed"],
-        }
 
 
 def extract_last_updated(html_content: str) -> Optional[datetime]:
@@ -794,6 +747,8 @@ async def process_single_lab(professor: Professor, correlation_id: str) -> Lab:
             description="",
             research_focus=[],
             news_updates=[],
+            lab_members=[],
+            publications_list=[],
             website_content="",
             data_quality_flags=data_quality_flags,
             last_wayback_snapshot=None,
@@ -820,20 +775,8 @@ async def process_single_lab(professor: Professor, correlation_id: str) -> Lab:
             lab_url=lab_url,
         )
 
-        # Story 4.3: Extract contact information
-        contact_info = extract_contact_info_safe(
-            website_content=scraped_data["website_content"], lab_url=lab_url
-        )
-        data_quality_flags.extend(contact_info["data_quality_flags"])
-
-        logger.info(
-            "Contact extraction complete",
-            professor_name=professor.name,
-            lab_url=lab_url,
-            emails_found=len(contact_info["contact_emails"]),
-            has_contact_form=bool(contact_info["contact_form_url"]),
-            has_application_url=bool(contact_info["application_url"]),
-        )
+        # Contact info now extracted in scrape_lab_website() as part of 5 categories
+        # Data quality flags already included in scraped_data["data_quality_flags"]
 
         lab = Lab(
             id=lab_id,
@@ -846,15 +789,17 @@ async def process_single_lab(professor: Professor, correlation_id: str) -> Lab:
             description=scraped_data["description"],
             research_focus=scraped_data["research_focus"],
             news_updates=scraped_data["news_updates"],
+            lab_members=scraped_data["lab_members"],  # NEW
+            publications_list=scraped_data["publications_list"],  # NEW
             website_content=scraped_data["website_content"],
             data_quality_flags=data_quality_flags,
             last_wayback_snapshot=None,
             wayback_snapshots=[],
             update_frequency="unknown",
-            # Story 4.3: Contact fields
-            contact_emails=contact_info["contact_emails"],
-            contact_form_url=contact_info["contact_form_url"],
-            application_url=contact_info["application_url"],
+            # Story 4.3: Contact fields (now from scraped_data)
+            contact_emails=scraped_data["contact_emails"],
+            contact_form_url=scraped_data["contact_form_url"],
+            application_url=scraped_data["application_url"],
         )
 
         # Story 4.2: Enrich with Archive.org data
@@ -885,6 +830,8 @@ async def process_single_lab(professor: Professor, correlation_id: str) -> Lab:
             description="",
             research_focus=[],
             news_updates=[],
+            lab_members=[],
+            publications_list=[],
             website_content="",
             data_quality_flags=data_quality_flags,
             last_wayback_snapshot=None,
@@ -1215,7 +1162,6 @@ def generate_missing_website_report(
 
     Story 4.4: Task 6
     """
-    from pathlib import Path
 
     # Calculate statistics
     total_labs = len(labs)
