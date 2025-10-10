@@ -8,7 +8,7 @@ from src.agents.professor_discovery import (
     discover_and_save_professors,
     discover_professors_for_department,
     discover_professors_parallel,
-    discover_with_playwright_fallback,
+    discover_with_puppeteer_fallback,
     generate_professor_id,
     load_relevant_departments,
     parse_professor_data,
@@ -159,8 +159,8 @@ async def test_discover_professors_invalid_url():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_discover_professors_sdk_failure_triggers_playwright(mocker):
-    """Test that WebFetch failure triggers Playwright fallback."""
+async def test_discover_professors_sdk_failure_triggers_puppeteer(mocker):
+    """Test that WebFetch failure triggers Puppeteer MCP fallback."""
     # Mock ClaudeSDKClient to raise exception
     mock_client = AsyncMock()
     mock_client.__aenter__ = AsyncMock(side_effect=Exception("WebFetch failed"))
@@ -169,9 +169,9 @@ async def test_discover_professors_sdk_failure_triggers_playwright(mocker):
         return_value=mock_client,
     )
 
-    # Mock Playwright fallback to return empty list
+    # Mock Puppeteer MCP fallback to return empty list
     mocker.patch(
-        "src.agents.professor_discovery.discover_with_playwright_fallback",
+        "src.agents.professor_discovery.discover_with_puppeteer_fallback",
         return_value=[],
     )
 
@@ -184,14 +184,14 @@ async def test_discover_professors_sdk_failure_triggers_playwright(mocker):
 
     professors = await discover_professors_for_department(dept, "test-corr-id")
 
-    # Should call Playwright fallback
+    # Should call Puppeteer MCP fallback
     assert professors == []
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_playwright_fallback_invalid_url():
-    """Test Playwright fallback with invalid URL."""
+async def test_puppeteer_fallback_invalid_url():
+    """Test Puppeteer MCP fallback with invalid URL."""
     dept = Department(
         id="dept-invalid",
         name="Invalid Department",
@@ -199,8 +199,55 @@ async def test_playwright_fallback_invalid_url():
         is_relevant=True,
     )
 
-    professors = await discover_with_playwright_fallback(dept, "test-corr-id")
+    professors = await discover_with_puppeteer_fallback(dept, "test-corr-id")
     assert professors == []
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_puppeteer_mcp_fallback_with_scrape_utility(mocker):
+    """Test Puppeteer MCP fallback using scrape_with_sufficiency utility."""
+    # Arrange
+    dept = Department(
+        id="dept-3",
+        name="Computer Science",
+        url="https://cs.edu/faculty",
+        is_relevant=True,
+    )
+
+    # Mock scrape_with_sufficiency to return ScrapingResult TypedDict
+    mock_scrape_result = {
+        "data": """
+        [
+            {
+                "name": "Dr. Alice Johnson",
+                "title": "Professor",
+                "research_areas": ["AI", "Machine Learning"],
+                "email": "alice@cs.edu",
+                "profile_url": "https://cs.edu/alice",
+                "lab_name": "AI Research Lab",
+                "lab_url": "https://ailab.cs.edu"
+            }
+        ]
+        """,
+        "sufficient": False,
+        "missing_fields": [],
+        "attempts": 2,
+    }
+
+    mocker.patch(
+        "src.agents.professor_discovery.scrape_with_sufficiency",
+        return_value=mock_scrape_result,
+    )
+
+    # Act
+    professors = await discover_with_puppeteer_fallback(dept, "test-corr-id")
+
+    # Assert
+    assert len(professors) == 1
+    assert professors[0].name == "Dr. Alice Johnson"
+    assert "puppeteer_mcp_used" in professors[0].data_quality_flags
+    assert "Machine Learning" in professors[0].research_areas
 
 
 @pytest.mark.integration

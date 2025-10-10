@@ -31,11 +31,22 @@ async def test_process_single_lab_with_url():
     )
 
     mock_scraped_data = {
+        # Category 1: lab_information
         "description": "Vision research lab",
-        "research_focus": ["Computer Vision", "ML"],
-        "news_updates": ["New paper"],
-        "website_content": "Full content",
+        "news_updates": ["New paper published"],
         "last_updated": datetime(2025, 10, 1),
+        # Category 2: contact
+        "contact_emails": ["vision@example.edu"],
+        "contact_form_url": "https://visionlab.example.edu/contact",
+        "application_url": "https://visionlab.example.edu/join",
+        # Category 3: people
+        "lab_members": ["Dr. Jane Smith (PI)", "Alice Chen (PhD)", "Bob Li (Postdoc)"],
+        # Category 4: research_focus
+        "research_focus": ["Computer Vision", "ML"],
+        # Category 5: publications
+        "publications_list": ["Paper 1: Vision Transformers", "Paper 2: 3D Reconstruction"],
+        # Other
+        "website_content": "Full content",
         "data_quality_flags": [],
     }
 
@@ -157,10 +168,15 @@ async def test_discover_and_scrape_labs_batch_with_professors(mocker):
 
     mock_scraped_data = {
         "description": "Test lab",
-        "research_focus": ["AI"],
         "news_updates": [],
-        "website_content": "Content",
         "last_updated": None,
+        "contact_emails": ["test@lab.edu"],
+        "contact_form_url": None,
+        "application_url": None,
+        "lab_members": ["PI Name"],
+        "research_focus": ["AI"],
+        "publications_list": [],
+        "website_content": "Content",
         "data_quality_flags": [],
     }
 
@@ -236,10 +252,15 @@ async def test_discover_and_scrape_labs_batch_resume_from_checkpoint(mocker):
 
     mock_scraped_data = {
         "description": "Bob's lab",
-        "research_focus": ["Physics"],
         "news_updates": [],
-        "website_content": "Content",
         "last_updated": None,
+        "contact_emails": [],
+        "contact_form_url": None,
+        "application_url": None,
+        "lab_members": [],
+        "research_focus": ["Physics"],
+        "publications_list": [],
+        "website_content": "Content",
         "data_quality_flags": [],
     }
 
@@ -264,3 +285,91 @@ async def test_discover_and_scrape_labs_batch_resume_from_checkpoint(mocker):
         # Should have 1 existing lab + 0 new labs (resume from batch 2, which is beyond total batches)
         assert len(labs) >= 1
         assert labs[0].description == "Existing lab"
+
+
+@pytest.mark.asyncio
+async def test_process_single_lab_extracts_five_categories(mocker):
+    """Test that lab scraping extracts all 5 data categories per Story 4.1 v1.1."""
+    # Arrange
+    professor = Professor(
+        id="prof5",
+        name="Dr. Emily Zhang",
+        title="Professor",
+        department_id="dept5",
+        department_name="Bioengineering",
+        profile_url="https://bioeng.edu/ezhang",
+        lab_url="https://zhanglab.bioeng.edu",
+    )
+
+    # Mock data with all 5 categories populated
+    mock_scraped_data = {
+        # Category 1: lab_information
+        "description": "Synthetic biology and bioengineering research",
+        "news_updates": ["NIH grant awarded", "New postdoc joined"],
+        "last_updated": datetime(2025, 9, 15),
+        # Category 2: contact
+        "contact_emails": ["zhang@bioeng.edu", "lab@zhanglab.edu"],
+        "contact_form_url": "https://zhanglab.bioeng.edu/contact",
+        "application_url": "https://zhanglab.bioeng.edu/positions",
+        # Category 3: people
+        "lab_members": [
+            "Dr. Emily Zhang (PI)",
+            "Sarah Kim (Postdoc)",
+            "Michael Chen (PhD Student)",
+            "Lisa Wang (Research Assistant)",
+        ],
+        # Category 4: research_focus
+        "research_focus": [
+            "Synthetic Biology",
+            "Gene Editing",
+            "CRISPR Technologies",
+            "Metabolic Engineering",
+        ],
+        # Category 5: publications
+        "publications_list": [
+            "Zhang et al. Nature 2025: CRISPR-based biosensors",
+            "Kim & Zhang Cell 2024: Metabolic pathway optimization",
+            "Chen et al. Science 2024: Synthetic gene circuits",
+        ],
+        # Other
+        "website_content": "Full website text content for analysis",
+        "data_quality_flags": [],
+    }
+
+    with patch(
+        "src.agents.lab_research.scrape_lab_website",
+        new=AsyncMock(return_value=mock_scraped_data),
+    ):
+        # Act
+        lab = await process_single_lab(professor, "test-correlation-id")
+
+        # Assert - Verify all 5 categories extracted
+        # Category 1: lab_information
+        assert lab.description == "Synthetic biology and bioengineering research"
+        assert len(lab.news_updates) == 2
+        assert "NIH grant awarded" in lab.news_updates
+        assert lab.last_updated == datetime(2025, 9, 15)
+
+        # Category 2: contact
+        assert len(lab.contact_emails) == 2
+        assert "zhang@bioeng.edu" in lab.contact_emails
+        assert lab.contact_form_url == "https://zhanglab.bioeng.edu/contact"
+        assert lab.application_url == "https://zhanglab.bioeng.edu/positions"
+
+        # Category 3: people
+        assert len(lab.lab_members) == 4
+        assert "Dr. Emily Zhang (PI)" in lab.lab_members
+        assert "Michael Chen (PhD Student)" in lab.lab_members
+
+        # Category 4: research_focus
+        assert len(lab.research_focus) == 4
+        assert "Synthetic Biology" in lab.research_focus
+        assert "CRISPR Technologies" in lab.research_focus
+
+        # Category 5: publications
+        assert len(lab.publications_list) == 3
+        assert any("Nature 2025" in pub for pub in lab.publications_list)
+
+        # Data quality flags: archive data will be added from Story 4.2
+        # Only 'no_archive_data' expected since archive.org integration runs
+        assert "no_archive_data" in lab.data_quality_flags or lab.data_quality_flags == []
