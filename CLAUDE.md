@@ -33,7 +33,7 @@ async with ClaudeSDKClient(options=options) as client:
 
 **Architecture:** Monolithic multi-agent pipeline with 8 phases, checkpoint-based resumability.
 
-**Status:** Epic 1 complete ✅ | Epic 2 complete ✅ | Last updated 2025-10-08
+**Status:** Epic 1 complete ✅ | Epic 2 complete ✅ | Epic 3 complete ✅ | Epic 4 in progress (Stories 4.1-4.4 complete) ✅ | Sprint Change Proposal Phase 7 complete ✅ | Last updated 2025-10-10
 
 ## Quick Reference Commands
 
@@ -82,8 +82,8 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 **Key Patterns:**
 - **Checkpoint/Restore:** JSONL batch-level persistence (`checkpoints/phase-N-batch-M.jsonl`)
 - **Graceful Degradation:** Missing data flagged, pipeline continues
-- **Web Scraping:** Built-in tools → Playwright → Skip with flag
-- **MCP Integration:** `paper-search-mcp`, `mcp-linkedin`
+- **Web Scraping:** Multi-stage pattern: WebFetch → Sufficiency → Puppeteer MCP → Re-evaluate (max 3 attempts)
+- **MCP Integration:** Puppeteer MCP, `paper-search-mcp`, `mcp-linkedin` via `.mcp.json`
 
 **Source Tree:** See `docs/architecture/source-tree.md`
 **Tech Stack:** See `docs/architecture/tech-stack.md` (Python 3.11.7, Claude Agent SDK, Playwright, MCP)
@@ -138,7 +138,7 @@ from src.utils.confidence import (
 2. **All LLM calls via `src/utils/llm_helpers.py`** - No inline prompts
 3. **Checkpoint saves atomic** - Use `checkpoint_manager.py`, never write JSONL directly
 4. **Always type hint** - `mypy` must pass
-5. **Web scraping:** Built-in tools → Playwright → Flag and skip
+5. **Web scraping uses multi-stage pattern:** WebFetch → Sufficiency → Puppeteer MCP → Re-evaluate (max 3 attempts)
 6. **LinkedIn via MCP** - Use `mcp-linkedin`, never custom scraping
 7. **Pydantic models for all data** - No raw dicts
 8. **Optional fields:** `field: Optional[str] = None`
@@ -148,7 +148,10 @@ from src.utils.confidence import (
 12. **Correlation IDs** - Bind to logger via `get_logger()`
 13. **CredentialManager for secrets** - Use `credential_manager.py`
 14. **Progress via ProgressTracker** - Use `progress_tracker.py`
-15. **MCP config via mcp_client** - Use `get_mcp_server_config()`
+15. **MCP servers configured via `.mcp.json`** - In `claude/` directory, NOT Python code
+16. **Always use `cwd` parameter for MCP access** - Point to `claude/` for MCP discovery
+17. **Sufficiency evaluation uses strong prompts** - thinking parameter not supported in SDK v0.1.1
+18. **Trust type guarantees** - If a function's type hint returns `dict[str, Any]`, trust it. Don't add `isinstance(result, str)` fallback checks. Functions with retry logic (like `scrape_with_sufficiency()`) already handle parsing failures—let them fail cleanly for checkpoint recovery.
 
 **Naming:** Classes=`PascalCase`, Functions=`snake_case`, Constants=`UPPER_SNAKE_CASE`, Private=`_leading_underscore`, Tests=`test_<module>.py`
 
@@ -199,12 +202,23 @@ api_key = cred_manager.get_credential("ANTHROPIC_API_KEY",
 
 ### MCP Configuration
 ```python
-from src.utils.mcp_client import get_mcp_server_config
 from claude_agent_sdk import ClaudeAgentOptions
+from pathlib import Path
 
-mcp_config = get_mcp_server_config()  # Loads LinkedIn creds from .env
-options = ClaudeAgentOptions(mcp_servers=mcp_config)
-# Available: mcp_config["papers"], mcp_config["linkedin"]
+# MCP-enabled operations (loads claude/.mcp.json)
+options = ClaudeAgentOptions(
+    cwd=Path(__file__).parent / "claude",  # SDK working directory
+    setting_sources=["project"],            # Loads .mcp.json
+    allowed_tools=["mcp__puppeteer__navigate", "mcp__puppeteer__evaluate"]
+)
+
+# Isolated operations (no MCP)
+options_isolated = ClaudeAgentOptions(
+    cwd=Path(__file__).parent / "claude",
+    setting_sources=None,                   # Isolated context
+    allowed_tools=["WebFetch"]
+)
+# Available MCP servers: puppeteer, papers, linkedin (configured in claude/.mcp.json)
 ```
 
 ### Progress Tracker
@@ -301,6 +315,7 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 ### Completed ✅
 **Epic 1: Foundation (COMPLETE)**
 - Stories 1.0-1.7 complete (validation, credentials, utilities, MCP setup, profile consolidation)
+- Story 1.5 complete - MCP server configuration via .mcp.json (implemented in Sprint Change Proposal Phase 4) ✅
 - Story 1.8 (CI/CD) - 80/100 QA score, needs monitoring
 
 **Epic 2: University Discovery (COMPLETE)**
@@ -324,6 +339,17 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 - Story 4.2 complete - Archive.org integration for website history (95/100 QA score) ✅
 - Story 4.3 complete - Contact information extraction (95/100 QA score) ✅
 - Story 4.4 complete - Graceful handling of missing/stale websites (95/100 QA score) ✅
+- Story 4.5 approved - Web scraping error handling with multi-stage pattern (v0.5 Puppeteer MCP architecture) ✅
+
+**Sprint Change Proposal - Web Scraping & MCP Architecture (COMPLETE)**
+- Phase 1: Pre-Flight Experiments ✅ COMPLETE (2025-10-09)
+- Phase 2: Architecture Documentation ✅ COMPLETE (2025-10-09)
+- Phase 3: Story Documentation Updates ✅ COMPLETE (2025-10-09)
+- Phase 4: Core Implementation ✅ COMPLETE (QA: 95/100)
+- Phase 5: Agent Implementation Updates ✅ COMPLETE (2025-10-09)
+- Phase 6: Test Suite Updates ✅ COMPLETE (2025-10-10)
+- Phase 7: QA Validation ✅ COMPLETE (Quality Score: 92/100, 513 tests passing, 88% coverage)
+- Phase 8: Product Owner Final Review - IN PROGRESS
 
 ### Key Insights
 
@@ -397,6 +423,14 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 - Testing: 31 comprehensive tests (4 unit Lab + 21 unit agent + 6 integration), Lab model 100% coverage, agent 62% coverage
 - QA score: 95/100 - production-ready, excellent code quality
 
+**Epic 4 (Story 4.1 - REWORKED):**
+- Lab website scraping: 5 data categories (lab_information, contact, people, research_focus, publications)
+- Multi-stage pattern: WebFetch → Sufficiency evaluation → Puppeteer MCP fallback
+- Sufficiency evaluation: Separate LLM prompt with strong instructions (thinking parameter not supported)
+- Data quality flags: insufficient_webfetch, puppeteer_mcp_used, sufficiency_evaluation_failed
+- Integration: Inline with lab processing (not separate batches)
+- QA score: [Pending rework]
+
 **Epic 4 (Story 4.2):**
 - Archive.org integration: Wayback Machine CDX API integration for website history analysis (3-year window)
 - Update frequency calculation: Analyzes snapshot intervals to classify frequency (weekly/monthly/quarterly/yearly/stale/unknown)
@@ -449,9 +483,9 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 
 **Epic 3 (Story 3.1a):**
 - Professor model: `data_quality_flags`, research areas, lab affiliations, profile tracking
-- Discovery agent: ClaudeSDKClient with WebFetch/Playwright fallback, retry logic (3 attempts, exponential backoff)
+- Discovery agent: Multi-stage scraping pattern with Puppeteer MCP fallback (WebFetch → Sufficiency → Puppeteer MCP → Re-evaluate, max 3 attempts)
 - Department loading: Loads from `checkpoints/phase-1-relevant-departments.jsonl`, filters for is_relevant=True
-- Data quality flags: `scraped_with_playwright_fallback`, `missing_email`, `missing_research_areas`, `missing_lab_affiliation`, `ambiguous_lab`
+- Data quality flags: `puppeteer_mcp_used`, `missing_email`, `missing_research_areas`, `missing_lab_affiliation`, `ambiguous_lab`
 - ID generation: SHA256 hash of `name:department_id` (first 16 chars)
 - Key pattern: ClaudeSDKClient class with `setting_sources=None` prevents codebase context injection
 - 10 comprehensive tests (basic discovery + edge cases), all passing
@@ -469,6 +503,17 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 - ConsolidatedProfile: LLM-generated `streamlined_interests` field
 - Checkpoint manager: JSONL batch-level persistence with resume support
 
+**Sprint Change Proposal (Phases 1-7 COMPLETE):**
+- MCP configuration: `.mcp.json` file in `claude/` directory, NOT Python code
+- ClaudeAgentOptions `cwd` parameter: Points to `claude/` for MCP discovery
+- SDK auto-discovers `.mcp.json` in specified `cwd`
+- Configuration includes 3 MCP servers: Puppeteer (@modelcontextprotocol/server-puppeteer), paper-search-mcp, mcp-linkedin
+- `setting_sources=["project"]` loads `.mcp.json`, `setting_sources=None` provides isolated context
+- Multi-stage web scraping pattern: WebFetch → Sufficiency → Puppeteer MCP → Re-evaluate (max 3 attempts)
+- 5-category data extraction: lab_information, contact, people, research_focus, publications
+- All 8 affected stories updated and marked complete: 1.5, 3.1a/b/c, 4.1, 4.3, 4.4, 4.5
+- QA validation: 92/100 quality score, zero technical debt, production-ready ✅
+
 ### Next Steps
 
 **Immediate:** Continue Epic 4 (Lab Intelligence) - Lab analysis and LinkedIn integration
@@ -479,7 +524,7 @@ venv/Scripts/python.exe -m src.utils.validator --config config/
 
 **Working Components:** Validation, credential management, checkpoints, logging, LLM helpers, progress tracking, MCP client, profile consolidation, university discovery, department filtering, professor model, professor discovery, parallel professor discovery, deduplication, rate limiting, professor filtering, confidence scoring, filtered professor logging, batch processing, lab website discovery, lab website scraping, archive.org integration, contact information extraction, website status detection, missing website handling
 
-**Test Status:** 501 tests passing (255 from Epics 1-2 + 138 from Epic 3 + 31 from Story 4.1 + 21 from Story 4.2 + 28 from Story 4.3 + 28 from Story 4.4), ruff ✅, mypy ✅
+**Test Status:** 513 tests passing (100% pass rate, 88% coverage), ruff ✅, mypy ✅, Sprint Change Proposal QA validated ✅
 
 ## Documentation References
 

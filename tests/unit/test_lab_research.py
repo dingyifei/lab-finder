@@ -4,11 +4,9 @@ Unit tests for Lab Research Agent.
 Story 4.1: Tasks 3-7
 """
 
-import pytest
 from src.agents.lab_research import (
     validate_url,
     discover_lab_website,
-    parse_lab_content,
     parse_date_string,
     extract_last_updated,
     extract_lab_description,
@@ -99,51 +97,6 @@ def test_discover_lab_website_none_lab_url():
 
     # Assert - Should return None (strategies 2-4 are TODOs)
     assert url is None
-
-
-def test_parse_lab_content_with_json():
-    """Test parsing JSON from Claude response."""
-    # Arrange
-    response = """```json
-{
-  "description": "Lab overview",
-  "research_focus": ["AI", "ML"],
-  "news_updates": ["News 1"],
-  "last_updated": "2025-10-01",
-  "website_content": "Full text"
-}
-```"""
-
-    # Act
-    data = parse_lab_content(response)
-
-    # Assert
-    assert data["description"] == "Lab overview"
-    assert data["research_focus"] == ["AI", "ML"]
-    assert len(data["news_updates"]) == 1
-
-
-def test_parse_lab_content_without_code_block():
-    """Test parsing raw JSON without markdown code block."""
-    # Arrange
-    response = '{"description": "Test", "research_focus": []}'
-
-    # Act
-    data = parse_lab_content(response)
-
-    # Assert
-    assert data["description"] == "Test"
-    assert isinstance(data["research_focus"], list)
-
-
-def test_parse_lab_content_invalid():
-    """Test parsing invalid JSON raises ValueError."""
-    # Arrange
-    response = "This is not JSON"
-
-    # Act & Assert
-    with pytest.raises(ValueError, match="No JSON object found"):
-        parse_lab_content(response)
 
 
 def test_parse_date_string_iso_format():

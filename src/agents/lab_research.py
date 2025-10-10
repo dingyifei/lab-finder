@@ -8,7 +8,6 @@ Story 4.3: Contact information extraction
 Story 4.4: Missing/stale website handling
 """
 
-import json
 import re
 from datetime import datetime, timezone
 from typing import Optional, Any
@@ -162,13 +161,9 @@ async def scrape_lab_website(lab_url: str, correlation_id: str) -> dict[str, Any
             correlation_id=correlation_id,
         )
 
-        # result["data"] is already a dict from scrape_with_sufficiency
-        # If it's a string (JSON), parse it; otherwise use directly
-        scraped_content = result["data"]
-        if isinstance(scraped_content, str):
-            parsed_data = parse_lab_content(scraped_content)
-        else:
-            parsed_data = scraped_content
+        # result["data"] is a dict[str, Any] from scrape_with_sufficiency
+        # Trust the type guarantee - no additional parsing needed
+        parsed_data = result["data"]
 
         # Extract data with category-based fallbacks
         lab_info = parsed_data.get("lab_information", {})
@@ -222,7 +217,7 @@ async def scrape_lab_website(lab_url: str, correlation_id: str) -> dict[str, Any
             "publications_list": publications if isinstance(publications, list) else [],
 
             # Other
-            "website_content": str(scraped_content) if isinstance(scraped_content, dict) else scraped_content,
+            "website_content": str(parsed_data) if isinstance(parsed_data, dict) else str(parsed_data),
             "data_quality_flags": data_quality_flags,
         }
 
@@ -238,56 +233,6 @@ async def scrape_lab_website(lab_url: str, correlation_id: str) -> dict[str, Any
     except Exception as e:
         logger.error("Multi-stage scraping failed", lab_url=lab_url, error=str(e))
         raise  # Will trigger retry via @retry decorator
-
-
-def parse_lab_content(response_text: str) -> dict[str, Any]:
-    """Parse JSON from Claude's response text for 5 data categories.
-
-    Expected JSON structure (Story 4.1 v1.1):
-    {
-      "lab_information": {
-        "description": "...",
-        "news": ["...", "..."],
-        "last_updated": "YYYY-MM-DD"
-      },
-      "contact": {
-        "emails": ["...", "..."],
-        "contact_form": "URL",
-        "application_url": "URL"
-      },
-      "people": ["Name (Role)", "Name (Role)", ...],
-      "research_focus": ["Area 1", "Area 2", ...],
-      "publications": ["Title 1", "Title 2", ...]
-    }
-
-    Args:
-        response_text: Response text from Claude or scraped content
-
-    Returns:
-        Parsed data dictionary with 5 categories
-
-    Raises:
-        ValueError: If JSON cannot be parsed
-    """
-    # Try to extract JSON from markdown code blocks
-    json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", response_text, re.DOTALL)
-    if json_match:
-        json_str = json_match.group(1)
-    else:
-        # Try to find raw JSON object
-        json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
-        if json_match:
-            json_str = json_match.group(0)
-        else:
-            raise ValueError("No JSON object found in response")
-
-    try:
-        parsed = json.loads(json_str)
-        # Return parsed data (may be missing some categories - handled by caller)
-        return parsed
-
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON in response: {e}")
 
 
 def parse_date_string(date_str: str) -> Optional[datetime]:

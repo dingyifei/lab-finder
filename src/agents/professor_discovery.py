@@ -349,14 +349,17 @@ async def discover_with_puppeteer_fallback(
             correlation_id=correlation_id,
         )
 
-        # Extract data from result (ScrapingResult TypedDict)
+        # Extract professors data - result["data"] is already a dict from scrape_with_sufficiency
+        # Expected structure: {"professors": [...]} or direct list
         scraped_data = result["data"]
 
-        # Parse professors from scraped data as JSON string
-        # If scraped_data is already parsed, convert to JSON string for parse_professor_data
-        import json as json_lib
-        data_str = json_lib.dumps(scraped_data) if isinstance(scraped_data, dict) else str(scraped_data)
-        professors_data = parse_professor_data(data_str)
+        # Handle two possible structures from LLM response
+        if isinstance(scraped_data, dict) and "professors" in scraped_data:
+            professors_data = scraped_data["professors"]
+        elif isinstance(scraped_data, list):
+            professors_data = scraped_data
+        else:
+            professors_data = []
 
         if not professors_data:
             logger.warning(

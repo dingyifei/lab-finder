@@ -217,19 +217,19 @@ async def test_puppeteer_mcp_fallback_with_scrape_utility(mocker):
 
     # Mock scrape_with_sufficiency to return ScrapingResult TypedDict
     mock_scrape_result = {
-        "data": """
-        [
-            {
-                "name": "Dr. Alice Johnson",
-                "title": "Professor",
-                "research_areas": ["AI", "Machine Learning"],
-                "email": "alice@cs.edu",
-                "profile_url": "https://cs.edu/alice",
-                "lab_name": "AI Research Lab",
-                "lab_url": "https://ailab.cs.edu"
-            }
-        ]
-        """,
+        "data": {
+            "professors": [
+                {
+                    "name": "Dr. Alice Johnson",
+                    "title": "Professor",
+                    "research_areas": ["AI", "Machine Learning"],
+                    "email": "alice@cs.edu",
+                    "profile_url": "https://cs.edu/alice",
+                    "lab_name": "AI Research Lab",
+                    "lab_url": "https://ailab.cs.edu"
+                }
+            ]
+        },
         "sufficient": False,
         "missing_fields": [],
         "attempts": 2,

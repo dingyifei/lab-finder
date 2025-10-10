@@ -344,54 +344,106 @@ async for msg in query(
 
 ---
 
-## Pattern 4: Graceful Degradation with WebFetch → Playwright Fallback **[DEPRECATED]**
+## Pattern 4: Graceful Degradation with WebFetch → Puppeteer MCP Multi-Stage Scraping
 
-**⚠️ DEPRECATED:** This pattern uses non-existent `AgentDefinition`. Use SDK query() with try-except instead.
+**Use Case:** Extract data from university websites with automatic escalation to Puppeteer MCP when WebFetch is insufficient
 
-**See correct pattern:** Story 2.1 (refactored) - SDK handles retry/fallback automatically via Playwright MCP
+**Architecture:** Multi-stage pattern with sufficiency evaluation between stages
 
-<details>
-<summary>❌ Old (Incorrect) Pattern - Kept for Historical Reference</summary>
+**Implementation:** See `src/utils/web_scraping.py` (created in Story 4.5) and `experiments/test_multistage_pattern.py`
 
 ```python
-async def scrape_with_fallback(url: str) -> str:
-    """Tiered scraping: WebFetch → Playwright → Skip"""
+from typing import TypedDict
+from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
+from pathlib import Path
 
-    # Try primary scraper (WebFetch)
-    primary_agent = AgentDefinition(
-        description="Primary web scraper",
-        prompt=f"""Scrape {url} using WebFetch.
-        If you encounter JavaScript or authentication requirements,
-        respond with: 'WEBFETCH_FAILED: [reason]'""",
-        tools=["WebFetch", "Read", "Write"],
-        model="sonnet"
-    )
+class ScrapingResult(TypedDict):
+    data: dict
+    sufficient: bool
+    missing_fields: list[str]
+    attempts: int
 
-    options_primary = ClaudeAgentOptions(agents={'primary-scraper': primary_agent})
+async def scrape_with_sufficiency(
+    url: str,
+    required_fields: list[str],
+    max_attempts: int = 3,
+    correlation_id: str = ""
+) -> ScrapingResult:
+    """Multi-stage web scraping with sufficiency evaluation.
 
-    async for msg in query(f"Scrape {url}", options=options_primary):
-        if "WEBFETCH_FAILED" not in msg.content:
-            return msg.content  # Success with WebFetch
+    Stages:
+    1. WebFetch Attempt → Extract data using built-in tools
+    2. Sufficiency Evaluation → LLM determines if data complete
+    3. Puppeteer MCP Fallback → Use browser automation if insufficient
+    4. Re-evaluate → Check completeness again
+    5. Retry or Return → Loop up to max_attempts, then return best effort
 
-        # Fallback to Playwright
-        fallback_agent = AgentDefinition(
-            description="Playwright fallback scraper",
-            prompt=f"""Scrape {url} using Playwright.
-            Use Bash to invoke: python scripts/playwright_scrape.py {url}""",
-            tools=["Bash", "Read", "Write"],
-            model="sonnet"
+    Returns:
+        ScrapingResult with data, sufficiency flag, missing fields, attempts
+    """
+    logger = get_logger(correlation_id=correlation_id, component="web-scraping")
+    attempt = 0
+    scraped_data = {}
+
+    while attempt < max_attempts:
+        attempt += 1
+
+        # Stage 1 or 3: Scrape with appropriate tool
+        if attempt == 1:
+            # Use WebFetch
+            options = ClaudeAgentOptions(
+                cwd=Path(__file__).parent.parent.parent / "claude",
+                setting_sources=None,  # Isolated
+                allowed_tools=["WebFetch"],
+                max_turns=2
+            )
+            prompt = f"Extract data from {url}. Required: {required_fields}"
+            scraped_data = await _scrape_with_sdk(prompt, options)
+        else:
+            # Use Puppeteer MCP
+            options = ClaudeAgentOptions(
+                cwd=Path(__file__).parent.parent.parent / "claude",
+                setting_sources=["project"],  # Loads .mcp.json
+                allowed_tools=["mcp__puppeteer__navigate", "mcp__puppeteer__evaluate"],
+                max_turns=3
+            )
+            prompt = f"Use Puppeteer to extract data from {url}. Required: {required_fields}"
+            scraped_data = await _scrape_with_sdk(prompt, options)
+
+        # Stage 2 or 4: Evaluate sufficiency
+        sufficiency_result = await evaluate_sufficiency(
+            scraped_data, required_fields, correlation_id
         )
 
-        options_fallback = ClaudeAgentOptions(agents={'fallback-scraper': fallback_agent})
+        if sufficiency_result["sufficient"]:
+            logger.info("Scraping sufficient", attempt=attempt)
+            return ScrapingResult(
+                data=scraped_data,
+                sufficient=True,
+                missing_fields=[],
+                attempts=attempt
+            )
 
-        async for fallback_msg in query(f"Scrape {url} with Playwright", options=options_fallback):
-            if "ERROR" in fallback_msg.content:
-                # Both failed, flag and skip
-                return {"error": "scraping_failed", "url": url, "flagged": True}
-            return fallback_msg.content
+        logger.warning("Scraping insufficient, retrying", missing=sufficiency_result["missing_fields"])
+
+    # Max attempts reached
+    logger.error("Max scraping attempts reached", url=url)
+    return ScrapingResult(
+        data=scraped_data,
+        sufficient=False,
+        missing_fields=sufficiency_result["missing_fields"],
+        attempts=max_attempts
+    )
 ```
 
-</details>
+**Key Points:**
+- Automatic escalation: WebFetch → Puppeteer MCP when data incomplete
+- Sufficiency evaluation uses separate LLM prompt (thinking parameter not supported in SDK v0.1.1)
+- Max 3 attempts by default (configurable)
+- Returns best-effort data even if insufficient
+- Data quality flags: `insufficient_webfetch`, `puppeteer_mcp_used`, `sufficiency_evaluation_failed`
+
+**Validation:** Experiment results in `experiments/test_multistage_pattern.py`
 
 ---
 
@@ -438,3 +490,262 @@ async for msg in query("Match these 20 lab members to LinkedIn", options=options
 ```
 
 </details>
+
+---
+
+## Pattern 6: MCP Server Configuration via .mcp.json with cwd
+
+**Use Case:** Configuring MCP servers (Puppeteer, paper-search-mcp, mcp-linkedin) for subprocess integration
+
+**File Structure:**
+```
+claude/
+├── .mcp.json                    # MCP server configuration
+└── .claude/
+    └── settings.json            # SDK settings (optional)
+```
+
+**Configuration Pattern (`claude/.mcp.json`):**
+```json
+{
+  "mcpServers": {
+    "puppeteer": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
+    },
+    "papers": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "paper_search_mcp.server"]
+    },
+    "linkedin": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/adhikasp/mcp-linkedin", "mcp-linkedin"],
+      "env": {
+        "LINKEDIN_EMAIL": "${LINKEDIN_EMAIL}",
+        "LINKEDIN_PASSWORD": "${LINKEDIN_PASSWORD}"
+      }
+    }
+  }
+}
+```
+
+**Python Usage:**
+```python
+from claude_agent_sdk import ClaudeAgentOptions
+from pathlib import Path
+
+# For MCP-enabled operations (loads .mcp.json)
+options_with_mcp = ClaudeAgentOptions(
+    cwd=Path(__file__).parent.parent / "claude",  # SDK working directory
+    setting_sources=["project"],                   # Loads .mcp.json
+    allowed_tools=["mcp__puppeteer__navigate", "mcp__puppeteer__evaluate"],
+    max_turns=3,
+    system_prompt="You are a web scraping assistant using Puppeteer MCP."
+)
+
+# For isolated operations (no MCP)
+options_isolated = ClaudeAgentOptions(
+    cwd=Path(__file__).parent.parent / "claude",
+    setting_sources=None,                          # Isolated context
+    allowed_tools=["WebFetch"],
+    max_turns=2
+)
+```
+
+**Key Points:**
+- `setting_sources=["project"]` → Loads `.mcp.json` from `cwd`
+- `setting_sources=None` → Isolated context, no codebase injection
+- `cwd` parameter specifies SDK working directory
+- Environment variables interpolated: `${VAR_NAME}` → reads from system environment
+
+**Validation:** Experiment results in `docs/experiments/web-scraping-mcp-validation.md`
+
+---
+
+## Pattern 7: Multi-Stage Web Scraping with Sufficiency Evaluation
+
+**Use Case:** Extract data from university websites with graceful degradation and quality assessment
+
+**Stages:**
+1. **WebFetch Attempt** → Extract data using built-in tools
+2. **Sufficiency Evaluation** → LLM determines if data complete
+3. **Puppeteer MCP Fallback** → Use browser automation if insufficient
+4. **Re-evaluate** → Check completeness again
+5. **Retry or Return** → Loop up to 3 attempts, then return best effort
+
+**Implementation (`src/utils/web_scraping.py`):**
+```python
+from typing import TypedDict
+
+class ScrapingResult(TypedDict):
+    data: dict
+    sufficient: bool
+    missing_fields: list[str]
+    attempts: int
+
+async def scrape_with_sufficiency(
+    url: str,
+    required_fields: list[str],
+    max_attempts: int = 3,
+    correlation_id: str = ""
+) -> ScrapingResult:
+    """Multi-stage web scraping with sufficiency evaluation.
+
+    Returns:
+        ScrapingResult with data, sufficiency flag, missing fields, attempts
+    """
+    logger = get_logger(correlation_id=correlation_id, component="web-scraping")
+    attempt = 0
+    scraped_data = {}
+
+    while attempt < max_attempts:
+        attempt += 1
+
+        # Stage 1 or 3: Scrape with appropriate tool
+        if attempt == 1:
+            # Use WebFetch
+            options = ClaudeAgentOptions(
+                cwd=Path(__file__).parent.parent.parent / "claude",
+                setting_sources=None,  # Isolated
+                allowed_tools=["WebFetch"],
+                max_turns=2
+            )
+            prompt = f"Extract data from {url}. Required: {required_fields}"
+            scraped_data = await _scrape_with_sdk(prompt, options)
+        else:
+            # Use Puppeteer MCP
+            options = ClaudeAgentOptions(
+                cwd=Path(__file__).parent.parent.parent / "claude",
+                setting_sources=["project"],  # Loads .mcp.json
+                allowed_tools=["mcp__puppeteer__navigate", "mcp__puppeteer__evaluate"],
+                max_turns=3
+            )
+            prompt = f"Use Puppeteer to extract data from {url}. Required: {required_fields}"
+            scraped_data = await _scrape_with_sdk(prompt, options)
+
+        # Stage 2 or 4: Evaluate sufficiency
+        sufficiency_result = await evaluate_sufficiency(
+            scraped_data, required_fields, correlation_id
+        )
+
+        if sufficiency_result["sufficient"]:
+            logger.info("Scraping sufficient", attempt=attempt)
+            return ScrapingResult(
+                data=scraped_data,
+                sufficient=True,
+                missing_fields=[],
+                attempts=attempt
+            )
+
+        logger.warning("Scraping insufficient, retrying", missing=sufficiency_result["missing_fields"])
+
+    # Max attempts reached
+    logger.error("Max scraping attempts reached", url=url)
+    return ScrapingResult(
+        data=scraped_data,
+        sufficient=False,
+        missing_fields=sufficiency_result["missing_fields"],
+        attempts=max_attempts
+    )
+
+async def evaluate_sufficiency(
+    data: dict,
+    required_fields: list[str],
+    correlation_id: str
+) -> dict:
+    """Evaluate if scraped data is sufficient.
+
+    NOTE: thinking parameter NOT supported in SDK v0.1.1.
+    Uses strong prompt instructions instead.
+    """
+    options = ClaudeAgentOptions(
+        cwd=Path(__file__).parent.parent.parent / "claude",
+        setting_sources=None,  # Isolated
+        allowed_tools=[],
+        max_turns=1,
+        system_prompt=(
+            "You are a data quality evaluator. Analyze scraped data and determine "
+            "if it contains all required fields. Output ONLY a JSON object with "
+            "'sufficient' (boolean) and 'missing_fields' (array). Think through your "
+            "analysis step-by-step before providing the JSON output."
+        )
+    )
+
+    prompt = f"""
+Evaluate this scraped data:
+{json.dumps(data, indent=2)}
+
+Required fields: {required_fields}
+
+Output format (JSON only):
+{{
+  "sufficient": true/false,
+  "missing_fields": ["field1", "field2"]
+}}
+"""
+
+    # Retry JSON parsing up to 3 times
+    for retry in range(3):
+        try:
+            async with ClaudeSDKClient(options=options) as client:
+                await client.query(prompt)
+                response_text = ""
+                async for message in client.receive_response():
+                    if hasattr(message, "content"):
+                        for block in message.content:
+                            if hasattr(block, "text"):
+                                response_text += block.text
+
+                result = parse_json_from_text(response_text)
+                return result
+        except json.JSONDecodeError:
+            logger.warning(f"JSON parse failed, retry {retry+1}/3")
+            continue
+
+    # Failed to parse - assume insufficient
+    return {"sufficient": False, "missing_fields": required_fields}
+```
+
+**Important: Trust Type Guarantees**
+
+The `scrape_with_sufficiency()` function returns `ScrapingResult` with `data: dict[str, Any]`. Calling code should trust this type guarantee:
+
+✅ **Correct Usage:**
+```python
+result = await scrape_with_sufficiency(url, required_fields, correlation_id=correlation_id)
+parsed_data = result["data"]  # Already a dict, use directly
+```
+
+❌ **Incorrect Usage (Redundant):**
+```python
+result = await scrape_with_sufficiency(url, required_fields, correlation_id=correlation_id)
+if isinstance(result["data"], str):
+    parsed_data = json.loads(result["data"])  # NEVER needed
+else:
+    parsed_data = result["data"]
+```
+
+The internal `_parse_json_from_text()` function already handles all JSON parsing with retry logic. If the LLM fails to return valid JSON after 3 attempts, it returns an empty dict `{}`, never a string. Trust the type system—it allows clean checkpoint recovery when failures truly occur.
+
+**Data Quality Flags:**
+- `insufficient_webfetch`: WebFetch didn't extract all required fields
+- `puppeteer_mcp_used`: Escalated to Puppeteer MCP fallback
+- `sufficiency_evaluation_failed`: Could not determine completeness
+
+**Usage Example:**
+```python
+from src.agents.professor_discovery import discover_professors_for_department
+
+# Internally calls scrape_with_sufficiency()
+professors = await discover_professors_for_department(department, correlation_id)
+
+# Check for data quality issues
+for prof in professors:
+    if "insufficient_scraping" in prof.data_quality_flags:
+        logger.warning("Incomplete data", professor=prof.name, missing=prof.missing_fields)
+```
+
+**Validation:** Experiment results in `experiments/test_multistage_pattern.py`
