@@ -17,15 +17,14 @@ import uuid
 from typing import Any, cast
 from urllib.parse import urlparse
 
-from bs4 import BeautifulSoup
 from claude_agent_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
     ClaudeSDKClient,
     TextBlock,
 )
-from playwright.async_api import async_playwright
 from tenacity import retry, stop_after_attempt, wait_exponential
+
 
 from src.models.department import Department
 from src.models.professor import Professor
@@ -34,6 +33,7 @@ from src.utils.deduplication import deduplicate_professors
 from src.utils.logger import get_logger
 from src.utils.progress_tracker import ProgressTracker
 from src.utils.rate_limiter import DomainRateLimiter
+from src.utils.web_scraping import scrape_with_sufficiency
 
 # Selector patterns to try for professor listings
 SELECTOR_PATTERNS = [
@@ -285,34 +285,42 @@ Example format:
         return professor_models
 
     except Exception as e:
-        logger.warning("WebFetch failed, falling back to Playwright", error=str(e))
-        return await discover_with_playwright_fallback(department, correlation_id)
+        logger.warning("WebFetch failed, falling back to Puppeteer MCP", error=str(e))
+        return await discover_with_puppeteer_fallback(department, correlation_id)
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-async def discover_with_playwright_fallback(
+async def discover_with_puppeteer_fallback(
     department: Department, correlation_id: str
 ) -> list[Professor]:
-    """Fallback to Playwright when Claude SDK WebFetch fails.
+    """Fallback to Puppeteer MCP when Claude SDK WebFetch fails.
+
+    Uses multi-stage scraping pattern from Story 4.5:
+    - Stage 1: WebFetch → Sufficiency evaluation
+    - Stage 2: Puppeteer MCP → Re-evaluate sufficiency
+    - Max 3 attempts with exponential backoff
 
     Args:
         department: Department model to discover professors for
         correlation_id: Correlation ID for logging
 
     Returns:
-        List of Professor models with playwright_fallback flag
+        List of Professor models with puppeteer_mcp_used flag
 
     Raises:
-        Exception: If Playwright scraping also fails after retries
+        Exception: If Puppeteer MCP scraping also fails after retries
+
+    Story 3.1a v0.4: Task 3.4 (Puppeteer MCP fallback)
+    Story 4.5 v0.5: Multi-stage pattern integration
     """
     logger = get_logger(
         correlation_id=correlation_id,
         phase="professor_discovery",
         component="professor_discovery",
     )
-    logger.info("Using Playwright fallback", department=department.name)
+    logger.info("Using Puppeteer MCP fallback", department=department.name)
 
-    # Handle invalid/missing department URL
+    # Validate department URL
     if not department.url or not department.url.startswith("http"):
         logger.error(
             "Invalid department URL",
@@ -322,91 +330,98 @@ async def discover_with_playwright_fallback(
         return []
 
     try:
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
+        # Required fields for professor discovery
+        required_fields = [
+            "name",
+            "title",
+            "research_areas",
+            "email",
+            "profile_url",
+            "lab_name",
+            "lab_url",
+        ]
 
-            # Set timeout to prevent hanging
-            await page.goto(department.url, wait_until="networkidle", timeout=30000)
-            await page.wait_for_timeout(2000)
-            content = await page.content()
-            await browser.close()
+        # Use multi-stage scraping (Story 4.5 pattern)
+        result = await scrape_with_sufficiency(
+            url=department.url,
+            required_fields=required_fields,
+            max_attempts=3,
+            correlation_id=correlation_id,
+        )
 
-            # Parse with BeautifulSoup
-            soup = BeautifulSoup(content, "html.parser")
+        # Extract data from result (ScrapingResult TypedDict)
+        scraped_data = result["data"]
 
-            # Try multiple selector patterns
-            professors_data = []
-            for selector in SELECTOR_PATTERNS:
-                elements = soup.select(selector)
-                if elements:
-                    logger.debug(
-                        f"Found {len(elements)} professors with selector: {selector}"
-                    )
-                    professors_data = parse_professor_elements(elements, department)
-                    break
+        # Parse professors from scraped data as JSON string
+        # If scraped_data is already parsed, convert to JSON string for parse_professor_data
+        import json as json_lib
+        data_str = json_lib.dumps(scraped_data) if isinstance(scraped_data, dict) else str(scraped_data)
+        professors_data = parse_professor_data(data_str)
 
-            # No professors found - flag but don't fail
-            if not professors_data:
-                logger.warning(
-                    "No professors found with any selector",
-                    department=department.name,
-                    url=department.url,
-                )
-                return []
-
-            # Convert to Professor models with playwright flag
-            professor_models = []
-            for p_data in professors_data:
-                # Extract and cast values from dict
-                name_val = p_data.get("name", "")
-                title_val = p_data.get("title", "Unknown")
-                lab_name_val = p_data.get("lab_name")
-                lab_url_val = p_data.get("lab_url")
-                research_areas_val = p_data.get("research_areas", [])
-                profile_url_val = p_data.get("profile_url", "")
-                email_val = p_data.get("email")
-
-                prof = Professor(
-                    id=generate_professor_id(
-                        str(name_val) if name_val else "", department.id
-                    ),
-                    name=str(name_val) if name_val else "",
-                    title=str(title_val) if title_val else "Unknown",
-                    department_id=department.id,
-                    department_name=department.name,
-                    school=department.school,
-                    lab_name=str(lab_name_val) if lab_name_val else None,
-                    lab_url=str(lab_url_val) if lab_url_val else None,
-                    research_areas=(
-                        list(research_areas_val)
-                        if isinstance(research_areas_val, list)
-                        else []
-                    ),
-                    profile_url=str(profile_url_val) if profile_url_val else "",
-                    email=str(email_val) if email_val else None,
-                    data_quality_flags=["scraped_with_playwright_fallback"],
-                )
-
-                # Add additional quality flags
-                if not prof.email:
-                    prof.add_quality_flag("missing_email")
-                if not prof.research_areas:
-                    prof.add_quality_flag("missing_research_areas")
-                if not prof.lab_name:
-                    prof.add_quality_flag("missing_lab_affiliation")
-
-                professor_models.append(prof)
-
-            logger.info(
-                "Playwright fallback successful",
-                professors_count=len(professor_models),
+        if not professors_data:
+            logger.warning(
+                "No professors found with Puppeteer MCP",
+                department=department.name,
+                url=department.url,
             )
-            return professor_models
+            return []
+
+        # Build data quality flags from result
+        base_flags = ["puppeteer_mcp_used"]
+        if not result["sufficient"]:
+            base_flags.append("insufficient_webfetch")
+        if result["attempts"] > 1:
+            base_flags.append("puppeteer_mcp_used")
+
+        # Convert to Professor models
+        professor_models = []
+        for p_data in professors_data:
+            # Safely cast research_areas to list[str]
+            research_areas_raw = p_data.get("research_areas", [])
+            research_areas: list[str] = (
+                list(research_areas_raw)
+                if isinstance(research_areas_raw, list)
+                else []
+            )
+
+            prof = Professor(
+                id=generate_professor_id(
+                    str(p_data.get("name", "")), department.id
+                ),
+                name=str(p_data.get("name", "")),
+                title=str(p_data.get("title", "Unknown")),
+                department_id=department.id,
+                department_name=department.name,
+                school=department.school,
+                lab_name=str(p_data["lab_name"]) if p_data.get("lab_name") else None,
+                lab_url=str(p_data["lab_url"]) if p_data.get("lab_url") else None,
+                research_areas=research_areas,
+                profile_url=str(p_data.get("profile_url", "")),
+                email=str(p_data["email"]) if p_data.get("email") else None,
+                data_quality_flags=base_flags.copy(),
+            )
+
+            # No need to iterate over result flags - they're derived above
+
+            # Add missing field flags
+            if not prof.email:
+                prof.add_quality_flag("missing_email")
+            if not prof.research_areas:
+                prof.add_quality_flag("missing_research_areas")
+            if not prof.lab_name:
+                prof.add_quality_flag("missing_lab_affiliation")
+
+            professor_models.append(prof)
+
+        logger.info(
+            "Puppeteer MCP fallback successful",
+            professors_count=len(professor_models),
+        )
+        return professor_models
 
     except Exception as e:
         logger.error(
-            "Playwright fallback also failed",
+            "Puppeteer MCP fallback failed",
             error=str(e),
             department=department.name,
         )
