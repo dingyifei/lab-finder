@@ -1,12 +1,14 @@
 """Professor Discovery Agent.
 
 Stories 3.1a, 3.1b, 3.1c: Professor discovery, parallel processing, and orchestration.
+Phase 1 POC: Agentic discovery pattern implementation
 
 Provides functions for:
 - Discovering professors from department websites
 - Parallel processing across multiple departments
 - Rate limiting and checkpointing
 - Complete discovery workflow orchestration
+- POC: Agentic multi-turn discovery (SCP-2025-10-11 Phase 1)
 """
 
 import asyncio
@@ -28,6 +30,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from src.models.department import Department
 from src.models.professor import Professor
+from src.utils.agentic_patterns import agentic_discovery_with_tools
 from src.utils.checkpoint_manager import CheckpointManager
 from src.utils.deduplication import deduplicate_professors
 from src.utils.logger import get_logger
@@ -478,6 +481,181 @@ def load_relevant_departments(correlation_id: str) -> list[Department]:
     )
 
     return valid_departments
+
+
+async def discover_professors_for_department_agentic_poc(
+    department: Department, correlation_id: str
+) -> list[Professor]:
+    """POC: Agentic professor discovery with multi-turn conversation.
+
+    This is the PHASE 1 POC implementation demonstrating the agentic pattern.
+    Key differences from discover_professors_for_department():
+    - Uses multi-turn conversation (actually leverages max_turns=3)
+    - Agent autonomously decides tool usage (WebFetch, WebSearch)
+    - Format reinforcement on final turn
+    - Agent self-evaluates completeness
+    - Logs conversation for analysis
+
+    Sprint Change Proposal: SCP-2025-10-11 Phase 1
+    Story: Phase 1 POC - Agentic discovery validation
+
+    Args:
+        department: Department model to discover professors for
+        correlation_id: Correlation ID for logging
+
+    Returns:
+        List of Professor models discovered via agentic pattern
+
+    Raises:
+        Exception: If discovery fails completely (after retries)
+    """
+    logger = get_logger(
+        correlation_id=correlation_id,
+        phase="professor_discovery_poc",
+        component="professor_discovery_agentic",
+    )
+    logger.info(
+        "Starting AGENTIC professor discovery (POC)",
+        department=department.name,
+        url=department.url,
+    )
+
+    # Validate department URL
+    if not department.url or not department.url.startswith("http"):
+        logger.error(
+            "Invalid department URL",
+            url=department.url,
+            department=department.name,
+        )
+        return []
+
+    # AGENTIC PATTERN: Let agent explore autonomously
+    initial_prompt = f"""
+Discover all professors in the {department.name} at {department.url}.
+
+Your task:
+1. Navigate to the department website
+2. Explore to find the faculty/people directory
+3. Extract information for ALL professors you find
+4. For each professor, gather: name, title, research areas, lab name, lab URL, email, profile URL
+
+Use WebFetch and WebSearch tools as needed. Explore the site structure to find comprehensive professor information.
+
+Think about what data you've found and what might be missing. If the initial page doesn't have enough detail, consider exploring individual professor profile pages.
+"""
+
+    format_template = """
+[
+  {
+    "name": "Dr. Full Name",
+    "title": "Professor/Associate Professor/etc.",
+    "research_areas": ["Area 1", "Area 2"],
+    "lab_name": "Lab Name or null",
+    "lab_url": "https://... or null",
+    "email": "email@domain.edu or null",
+    "profile_url": "https://..."
+  }
+]
+"""
+
+    system_prompt = """You are an expert web scraping assistant specialized in discovering university faculty information.
+
+Your capabilities:
+- Autonomous web navigation using WebFetch and WebSearch
+- Identifying faculty directory structures across various university websites
+- Extracting comprehensive professor data from listings and profile pages
+- Evaluating completeness of discovered data
+
+Approach:
+1. Start with WebFetch on the department URL to understand site structure
+2. Look for faculty/people/directory links
+3. Extract professor listings
+4. Evaluate if you have sufficient data for each professor
+5. If needed, use WebSearch to find additional professor information
+6. Continue exploring until you have comprehensive data or reach turn limit
+"""
+
+    try:
+        # Use agentic discovery pattern
+        result = await agentic_discovery_with_tools(
+            prompt=initial_prompt,
+            max_turns=3,
+            allowed_tools=["WebFetch", "WebSearch"],
+            system_prompt=system_prompt,
+            format_template=format_template,
+            correlation_id=correlation_id,
+        )
+
+        # Log conversation for analysis
+        logger.info(
+            "Agentic discovery complete",
+            turns_used=result["turns_used"],
+            tools_used=result["tools_used"],
+            format_valid=result["format_valid"],
+            conversation_turns=len(result["conversation_log"]),
+        )
+
+        # Extract professor data
+        professors_data = result["data"]
+        if not isinstance(professors_data, list):
+            logger.warning(
+                "Expected list of professors, got different structure",
+                data_type=type(professors_data).__name__,
+            )
+            professors_data = []
+
+        # Convert to Professor Pydantic models
+        professor_models = []
+        for p in professors_data:
+            prof = Professor(
+                id=generate_professor_id(str(p.get("name", "")), department.id),
+                name=str(p.get("name", "")),
+                title=str(p.get("title", "Unknown")),
+                department_id=department.id,
+                department_name=department.name,
+                school=department.school,
+                lab_name=str(p["lab_name"]) if p.get("lab_name") else None,
+                lab_url=str(p["lab_url"]) if p.get("lab_url") else None,
+                research_areas=(
+                    cast(list[str], p.get("research_areas", []))
+                    if isinstance(p.get("research_areas"), list)
+                    else []
+                ),
+                profile_url=str(p.get("profile_url", "")),
+                email=str(p["email"]) if p.get("email") else None,
+                data_quality_flags=["agentic_discovery_poc"],  # Mark as POC
+            )
+
+            # Add quality flags
+            if not prof.email:
+                prof.add_quality_flag("missing_email")
+            if not prof.research_areas:
+                prof.add_quality_flag("missing_research_areas")
+            if not prof.lab_name:
+                prof.add_quality_flag("missing_lab_affiliation")
+            if not result["format_valid"]:
+                prof.add_quality_flag("format_reinforcement_needed")
+
+            professor_models.append(prof)
+
+        logger.info(
+            "AGENTIC discovery successful (POC)",
+            professors_count=len(professor_models),
+            avg_research_areas=sum(len(p.research_areas) for p in professor_models)
+            / max(len(professor_models), 1),
+            missing_emails=sum(1 for p in professor_models if not p.email),
+        )
+
+        return professor_models
+
+    except Exception as e:
+        logger.error(
+            "AGENTIC discovery failed (POC)",
+            error=str(e),
+            department=department.name,
+        )
+        # Don't fallback for POC - we want to see pure agentic results
+        raise
 
 
 async def discover_professors_parallel(
