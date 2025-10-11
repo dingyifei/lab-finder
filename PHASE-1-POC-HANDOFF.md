@@ -381,16 +381,17 @@ _Document any blockers or issues here as they arise_
    - Built-in tools (WebFetch, WebSearch) should work without MCP but SDK may need proper config
    - Test URL might be invalid or site structure changed
    **Attempted Fixes:**
-   - ✅ Added `cwd` parameter pointing to claude/ directory - NO CHANGE
-   **Still Investigating:**
-   - SDK initialization timeout persists
-   - Old pattern also found 0 professors (URL issue?)
-   - Might be SDK version compatibility issue
-   **Next Steps:**
-   - Check if old zero-shot pattern works with different URL
-   - Try removing `setting_sources=None` to see if that helps
-   - Consider SDK may need different configuration for built-in tools
-   - May need to file bug report or consult SDK documentation
+   - ✅ Added `cwd` parameter pointing to claude/ directory → NO CHANGE
+   - ❌ Changed `setting_sources=None` to `setting_sources=["project"]` → NO CHANGE
+     - Same timeout error persists
+     - SDK still fails to initialize
+   **Analysis:**
+   - Both old and new patterns struggle with same test URL
+   - Old pattern: Completes but finds 0 professors (~42s)
+   - Agentic pattern: Times out during initialization (~64s)
+   - Timeout happens BEFORE any queries sent to LLM
+   - This appears to be a fundamental SDK initialization issue
+   **Resolution:** BLOCKER - Needs deeper investigation or alternative approach
 
 ---
 
@@ -430,7 +431,35 @@ _Document emerging best practices_
 
 _After Phase 1 completion, document recommendations for Phase 2_
 
-**Go/No-Go Decision:** PENDING
+**Go/No-Go Decision:** BLOCKED (Day 1)
+
+**Blocker:** SDK initialization timeout prevents POC validation
+
+**Alternative Paths Forward:**
+
+**Path A: Use Real Checkpoint Data (Recommended)**
+- Load departments from `checkpoints/phase-1-relevant-departments.jsonl`
+- Test with departments that previously worked in Epic 2/3
+- This validates the pattern with known-good data
+- Bypasses URL/SDK initialization issues
+
+**Path B: Investigate SDK Issue**
+- File bug report with Claude Agent SDK team
+- Test with SDK examples to isolate issue
+- May require SDK version downgrade/upgrade
+- Time investment: Unknown
+
+**Path C: Conceptual Validation**
+- Document the agentic pattern design thoroughly
+- Create unit tests that mock SDK responses
+- Validate pattern logic without actual SDK execution
+- Proceed to Phase 2 assuming SDK will be fixed
+
+**Path D: Simplify Test**
+- Create minimal standalone test without professor discovery
+- Test just multi-turn conversation pattern
+- Validate format reinforcement independently
+- Build confidence incrementally
 
 **If GO:**
 - [ ] Apply pattern to university_discovery.py
