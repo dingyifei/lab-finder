@@ -103,7 +103,8 @@
       "Bash(if not exist \"prompts\\publication\" mkdir \"prompts\\publication\")",
       "Bash(if not exist \"prompts\\linkedin\" mkdir \"prompts\\linkedin\")",
       "WebFetch(domain:www.anthropic.com)",
-      "Bash(git tag:*)"
+      "Bash(git tag:*)",
+      "Bash(venv/Scripts/pip-compile.exe:*)"
     ],
     "deny": [],
     "ask": []

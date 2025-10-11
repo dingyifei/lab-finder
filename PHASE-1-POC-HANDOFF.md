@@ -369,29 +369,35 @@ Approach:
 ### Discovered Issues
 _Document any blockers or issues here as they arise_
 
-1. **Issue:** SDK initialization timeout in agentic pattern
+1. **Issue:** SDK initialization timeout in agentic multi-turn pattern
    **Error:** `Control request timeout: initialize`
-   **Status:** INVESTIGATING
+   **Status:** PARTIALLY RESOLVED ✅ - SDK 0.1.3 works, multi-turn pattern needs fixing
+
+   **BREAKTHROUGH:**
+   - ✅ Upgraded SDK from 0.1.1 → 0.1.3
+   - ✅ Created minimal test (`test_minimal_sdk.py`) - ALL TESTS PASS
+   - ✅ SDK 0.1.3 works perfectly with:
+     * Single query/response (max_turns=1)
+     * WebFetch tool
+     * Both setting_sources=None and ["project"]
+   - ❌ Agentic pattern (max_turns=3) still times out
+
+   **Root Cause Identified:**
+   - SDK version 0.1.1 had initialization bug
+   - SDK 0.1.3 fixes single-turn usage
+   - **Issue is now in our multi-turn conversation loop implementation**
+   - Not an SDK configuration problem - SDK works fine
+
    **Context:**
-   - Occurs when initializing ClaudeSDKClient in agentic_discovery_with_tools()
-   - Old pattern found 0 professors (might be URL issue too)
-   - Agentic pattern failed before making any requests
-   **Hypothesis:**
-   - Missing `cwd` parameter might cause SDK confusion
-   - Built-in tools (WebFetch, WebSearch) should work without MCP but SDK may need proper config
-   - Test URL might be invalid or site structure changed
-   **Attempted Fixes:**
-   - ✅ Added `cwd` parameter pointing to claude/ directory → NO CHANGE
-   - ❌ Changed `setting_sources=None` to `setting_sources=["project"]` → NO CHANGE
-     - Same timeout error persists
-     - SDK still fails to initialize
-   **Analysis:**
-   - Both old and new patterns struggle with same test URL
-   - Old pattern: Completes but finds 0 professors (~42s)
-   - Agentic pattern: Times out during initialization (~64s)
-   - Timeout happens BEFORE any queries sent to LLM
-   - This appears to be a fundamental SDK initialization issue
-   **Resolution:** BLOCKER - Needs deeper investigation or alternative approach
+   - Minimal test: `async with ClaudeSDKClient... await client.query... async for message` - WORKS
+   - Agentic pattern: Same pattern but with multi-turn logic - TIMES OUT
+   - Difference must be in how we handle the conversation loop for max_turns>1
+
+   **Next Steps:**
+   - Simplify agentic_discovery_with_tools() to match minimal test pattern
+   - Remove complex multi-turn loop initially
+   - Start with max_turns=1, then incrementally add multi-turn logic
+   - The format reinforcement turn might be causing the issue
 
 ---
 
@@ -431,35 +437,7 @@ _Document emerging best practices_
 
 _After Phase 1 completion, document recommendations for Phase 2_
 
-**Go/No-Go Decision:** BLOCKED (Day 1)
-
-**Blocker:** SDK initialization timeout prevents POC validation
-
-**Alternative Paths Forward:**
-
-**Path A: Use Real Checkpoint Data (Recommended)**
-- Load departments from `checkpoints/phase-1-relevant-departments.jsonl`
-- Test with departments that previously worked in Epic 2/3
-- This validates the pattern with known-good data
-- Bypasses URL/SDK initialization issues
-
-**Path B: Investigate SDK Issue**
-- File bug report with Claude Agent SDK team
-- Test with SDK examples to isolate issue
-- May require SDK version downgrade/upgrade
-- Time investment: Unknown
-
-**Path C: Conceptual Validation**
-- Document the agentic pattern design thoroughly
-- Create unit tests that mock SDK responses
-- Validate pattern logic without actual SDK execution
-- Proceed to Phase 2 assuming SDK will be fixed
-
-**Path D: Simplify Test**
-- Create minimal standalone test without professor discovery
-- Test just multi-turn conversation pattern
-- Validate format reinforcement independently
-- Build confidence incrementally
+**Go/No-Go Decision:** PENDING
 
 **If GO:**
 - [ ] Apply pattern to university_discovery.py

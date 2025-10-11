@@ -99,14 +99,12 @@ async def agentic_discovery_with_tools(
     # CRITICAL: Set cwd to claude/ directory for SDK context
     claude_dir = Path(__file__).parent.parent.parent / "claude"
 
-    # EXPERIMENT: Try setting_sources=["project"] instead of None
-    # Hypothesis: SDK may need MCP config even for built-in tools
     options = ClaudeAgentOptions(
         allowed_tools=allowed_tools,
         max_turns=max_turns,
         system_prompt=system_prompt,
         cwd=claude_dir,  # SDK working directory
-        setting_sources=["project"],  # Load .mcp.json (may help SDK initialization)
+        setting_sources=None,  # Isolated context (no MCP for built-in tools)
     )
 
     turns_used = 0
@@ -257,7 +255,7 @@ async def spawn_sub_agent(
             max_turns=2,
             system_prompt="You are a specialized data extraction assistant.",
             cwd=claude_dir,
-            setting_sources=["project"],  # Match main function config
+            setting_sources=None,
         )
 
         result_data = {}
