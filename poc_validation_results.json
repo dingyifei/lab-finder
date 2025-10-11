@@ -1,0 +1,20 @@
+{
+  "test_department": {
+    "name": "Computer Science",
+    "url": "https://cs.stanford.edu/directory/faculty"
+  },
+  "old_pattern": {
+    "count": 0,
+    "sample": null
+  },
+  "agentic_pattern": {
+    "count": 0,
+    "sample": null
+  },
+  "success_criteria": {
+    "professors_found": false,
+    "comparable_count": false,
+    "has_agentic_flag": false
+  },
+  "overall_pass": false
+}

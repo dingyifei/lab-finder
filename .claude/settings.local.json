@@ -102,7 +102,8 @@
       "Bash(if not exist \"prompts\\lab\" mkdir \"prompts\\lab\")",
       "Bash(if not exist \"prompts\\publication\" mkdir \"prompts\\publication\")",
       "Bash(if not exist \"prompts\\linkedin\" mkdir \"prompts\\linkedin\")",
-      "WebFetch(domain:www.anthropic.com)"
+      "WebFetch(domain:www.anthropic.com)",
+      "Bash(git tag:*)"
     ],
     "deny": [],
     "ask": []

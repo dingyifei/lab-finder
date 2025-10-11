@@ -44,14 +44,14 @@ async def run_poc_comparison():
         old_results = await discover_professors_for_department(
             test_department, correlation_id="poc-test-old"
         )
-        print("✅ Old pattern completed")
+        print(" Old pattern completed")
         print(f"   Professors found: {len(old_results)}")
         if old_results:
             print(f"   Sample professor: {old_results[0].name}")
             print(f"   Research areas: {old_results[0].research_areas}")
             print(f"   Data quality flags: {old_results[0].data_quality_flags}")
     except Exception as e:
-        print(f"❌ Old pattern failed: {e}")
+        print(f" Old pattern failed: {e}")
         old_results = []
 
     # Test 2: New agentic pattern
@@ -61,14 +61,14 @@ async def run_poc_comparison():
         new_results = await discover_professors_for_department_agentic_poc(
             test_department, correlation_id="poc-test-agentic"
         )
-        print("✅ Agentic pattern completed")
+        print(" Agentic pattern completed")
         print(f"   Professors found: {len(new_results)}")
         if new_results:
             print(f"   Sample professor: {new_results[0].name}")
             print(f"   Research areas: {new_results[0].research_areas}")
             print(f"   Data quality flags: {new_results[0].data_quality_flags}")
     except Exception as e:
-        print(f"❌ Agentic pattern failed: {e}")
+        print(f" Agentic pattern failed: {e}")
         new_results = []
 
     # Comparison
@@ -76,7 +76,7 @@ async def run_poc_comparison():
     print("COMPARISON RESULTS")
     print("=" * 80)
 
-    print("\n📊 Professor Count:")
+    print("\n Professor Count:")
     print(f"   Old pattern:     {len(old_results)}")
     print(f"   Agentic pattern: {len(new_results)}")
     print(f"   Difference:      {len(new_results) - len(old_results):+d}")
@@ -86,7 +86,7 @@ async def run_poc_comparison():
             old_results
         )
         missing_email_old = sum(1 for p in old_results if not p.email)
-        print("\n📈 Old Pattern Metrics:")
+        print("\n Old Pattern Metrics:")
         print(f"   Avg research areas per prof: {avg_research_old:.2f}")
         print(f"   Missing emails: {missing_email_old}")
 
@@ -95,7 +95,7 @@ async def run_poc_comparison():
             new_results
         )
         missing_email_new = sum(1 for p in new_results if not p.email)
-        print("\n📈 Agentic Pattern Metrics:")
+        print("\n Agentic Pattern Metrics:")
         print(f"   Avg research areas per prof: {avg_research_new:.2f}")
         print(f"   Missing emails: {missing_email_new}")
 
@@ -113,18 +113,18 @@ async def run_poc_comparison():
         "has_agentic_flag": any("agentic_discovery_poc" in p.data_quality_flags for p in new_results),
     }
 
-    print("\n✅ Success Criteria:")
+    print("\n Success Criteria:")
     for criterion, passed in success_criteria.items():
-        status = "✅ PASS" if passed else "❌ FAIL"
+        status = " PASS" if passed else " FAIL"
         print(f"   {status} - {criterion}")
 
     overall_pass = all(success_criteria.values())
     print(f"\n{'='*80}")
     if overall_pass:
-        print("🎉 POC VALIDATION: PASSED")
+        print(" POC VALIDATION: PASSED")
         print("   Ready to proceed to Phase 1 Day 2-3 (sub-agents)")
     else:
-        print("⚠️  POC VALIDATION: NEEDS REVIEW")
+        print("  POC VALIDATION: NEEDS REVIEW")
         print("   Review logs and adjust pattern before proceeding")
     print("=" * 80)
 
@@ -149,8 +149,8 @@ async def run_poc_comparison():
     with open("poc_validation_results.json", "w", encoding="utf-8") as f:
         json.dump(results_summary, f, indent=2)
 
-    print("\n💾 Results saved to: poc_validation_results.json")
-    print("\n📋 Next steps:")
+    print("\n Results saved to: poc_validation_results.json")
+    print("\n Next steps:")
     if overall_pass:
         print("   1. Review conversation logs in logs/lab-finder.log")
         print("   2. Update PHASE-1-POC-HANDOFF.md with findings")
@@ -162,6 +162,6 @@ async def run_poc_comparison():
 
 
 if __name__ == "__main__":
-    print("\n🚀 Starting POC validation...")
+    print("\n>>> Starting POC validation...")
     print("This will test both old and new patterns\n")
     asyncio.run(run_poc_comparison())

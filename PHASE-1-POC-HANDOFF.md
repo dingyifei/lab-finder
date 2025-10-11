@@ -369,9 +369,28 @@ Approach:
 ### Discovered Issues
 _Document any blockers or issues here as they arise_
 
-1. **Issue:** None yet
-   **Status:** N/A
-   **Resolution:** N/A
+1. **Issue:** SDK initialization timeout in agentic pattern
+   **Error:** `Control request timeout: initialize`
+   **Status:** INVESTIGATING
+   **Context:**
+   - Occurs when initializing ClaudeSDKClient in agentic_discovery_with_tools()
+   - Old pattern found 0 professors (might be URL issue too)
+   - Agentic pattern failed before making any requests
+   **Hypothesis:**
+   - Missing `cwd` parameter might cause SDK confusion
+   - Built-in tools (WebFetch, WebSearch) should work without MCP but SDK may need proper config
+   - Test URL might be invalid or site structure changed
+   **Attempted Fixes:**
+   - ✅ Added `cwd` parameter pointing to claude/ directory - NO CHANGE
+   **Still Investigating:**
+   - SDK initialization timeout persists
+   - Old pattern also found 0 professors (URL issue?)
+   - Might be SDK version compatibility issue
+   **Next Steps:**
+   - Check if old zero-shot pattern works with different URL
+   - Try removing `setting_sources=None` to see if that helps
+   - Consider SDK may need different configuration for built-in tools
+   - May need to file bug report or consult SDK documentation
 
 ---
 
