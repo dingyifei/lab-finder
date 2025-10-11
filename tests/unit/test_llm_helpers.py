@@ -5,11 +5,6 @@ Unit tests for llm_helpers module.
 import pytest
 from unittest.mock import AsyncMock
 from src.utils.llm_helpers import (
-    DEPARTMENT_RELEVANCE_TEMPLATE,
-    PROFESSOR_FILTER_TEMPLATE,
-    LINKEDIN_MATCH_TEMPLATE,
-    NAME_MATCH_TEMPLATE,
-    ABSTRACT_RELEVANCE_TEMPLATE,
     call_llm_with_retry,
     analyze_department_relevance,
     filter_professor_research,
@@ -17,6 +12,7 @@ from src.utils.llm_helpers import (
     match_names,
     score_abstract_relevance,
 )
+from src.utils.prompt_loader import render_prompt
 
 
 class TestPromptTemplates:
@@ -32,7 +28,8 @@ class TestPromptTemplates:
         school = "Engineering"
 
         # Act
-        prompt = DEPARTMENT_RELEVANCE_TEMPLATE.format(
+        prompt = render_prompt(
+            "department/relevance_filter.j2",
             interests=interests,
             degree=degree,
             background=background,
@@ -60,8 +57,12 @@ class TestPromptTemplates:
         bio = "Professor of CS"
 
         # Act
-        prompt = PROFESSOR_FILTER_TEMPLATE.format(
-            profile=profile, name=name, research_areas=research_areas, bio=bio
+        prompt = render_prompt(
+            "professor/research_filter.j2",
+            profile=profile,
+            name=name,
+            research_areas=research_areas,
+            bio=bio,
         )
 
         # Assert
@@ -82,7 +83,8 @@ class TestPromptTemplates:
         profile_data = "Software Engineer at Google"
 
         # Act
-        prompt = LINKEDIN_MATCH_TEMPLATE.format(
+        prompt = render_prompt(
+            "linkedin/profile_match.j2",
             member_name=member_name,
             university=university,
             lab_name=lab_name,
@@ -103,7 +105,9 @@ class TestPromptTemplates:
         context = "Both at Stanford CS"
 
         # Act
-        prompt = NAME_MATCH_TEMPLATE.format(name1=name1, name2=name2, context=context)
+        prompt = render_prompt(
+            "professor/name_match.j2", name1=name1, name2=name2, context=context
+        )
 
         # Assert
         assert "J. Smith" in prompt
@@ -118,8 +122,11 @@ class TestPromptTemplates:
         title = "Novel ML Approach"
 
         # Act
-        prompt = ABSTRACT_RELEVANCE_TEMPLATE.format(
-            interests=interests, abstract=abstract, title=title
+        prompt = render_prompt(
+            "publication/abstract_relevance.j2",
+            interests=interests,
+            abstract=abstract,
+            title=title,
         )
 
         # Assert

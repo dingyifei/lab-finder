@@ -125,7 +125,7 @@ def test_has_quality_issues():
 def test_professor_data_quality_flags_constant():
     """Test that PROFESSOR_DATA_QUALITY_FLAGS contains expected flags."""
     expected_flags = {
-        "scraped_with_playwright_fallback",
+        "puppeteer_mcp_used",  # Phase 5: Puppeteer MCP fallback
         "missing_email",
         "missing_research_areas",
         "missing_lab_affiliation",

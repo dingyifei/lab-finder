@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "puppeteer": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
+    },
+    "papers": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "paper_search_mcp.server"]
+    },
+    "linkedin": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/adhikasp/mcp-linkedin", "mcp-linkedin"],
+      "env": {
+        "LINKEDIN_EMAIL": "${LINKEDIN_EMAIL}",
+        "LINKEDIN_PASSWORD": "${LINKEDIN_PASSWORD}"
+      }
+    }
+  }
+}

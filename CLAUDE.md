@@ -152,6 +152,7 @@ from src.utils.confidence import (
 16. **Always use `cwd` parameter for MCP access** - Point to `claude/` for MCP discovery
 17. **Sufficiency evaluation uses strong prompts** - thinking parameter not supported in SDK v0.1.1
 18. **Trust type guarantees** - If a function's type hint returns `dict[str, Any]`, trust it. Don't add `isinstance(result, str)` fallback checks. Functions with retry logic (like `scrape_with_sufficiency()`) already handle parsing failures—let them fail cleanly for checkpoint recovery.
+19. **Prompt templates externalized** - All LLM prompts stored in `prompts/` directory as Jinja2 templates, loaded via `prompt_loader.py`. No inline prompt strings in code.
 
 **Naming:** Classes=`PascalCase`, Functions=`snake_case`, Constants=`UPPER_SNAKE_CASE`, Private=`_leading_underscore`, Tests=`test_<module>.py`
 
@@ -230,6 +231,22 @@ tracker.start_phase("Phase 2: Professor Discovery", total_items=100)
 tracker.update(completed=20)
 tracker.update_batch(batch_num=3, total_batches=8, batch_desc="Professors 21-40")
 tracker.complete_phase()
+```
+
+### Prompt Loader
+```python
+from src.utils.prompt_loader import render_prompt
+
+# Render template with variables
+prompt = render_prompt(
+    "professor/research_filter.j2",
+    name="Dr. Smith",
+    research_areas="ML, AI",
+    profile=user_profile
+)
+
+# Use in llm_helpers
+response = await call_llm_with_retry(prompt)
 ```
 
 ## Testing Strategy

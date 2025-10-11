@@ -12,6 +12,19 @@ lab-finder/
 ├── data/                            # Static data files
 │   └── scimago-journal-rank.csv    # SJR journal reputation database
 │
+├── prompts/                         # Jinja2 LLM prompt templates (externalized)
+│   ├── base/                        # Base templates and reusable components
+│   ├── department/                  # Department-related prompts
+│   │   └── relevance_filter.j2
+│   ├── professor/                   # Professor-related prompts
+│   │   ├── research_filter.j2
+│   │   └── name_match.j2
+│   ├── linkedin/                    # LinkedIn-related prompts
+│   │   └── profile_match.j2
+│   ├── publication/                 # Publication-related prompts
+│   │   └── abstract_relevance.j2
+│   └── README.md                    # Prompt template usage guide
+│
 ├── src/                             # Source code
 │   ├── main.py                      # CLI entry point
 │   ├── coordinator.py               # CLI Coordinator component
@@ -47,14 +60,19 @@ lab-finder/
 │   │   ├── __init__.py
 │   │   ├── checkpoint_manager.py   # Checkpoint save/load logic
 │   │   ├── progress_tracker.py     # Progress bar wrapper (rich)
-│   │   ├── mcp_client.py           # MCP server client helpers
-│   │   ├── web_scraper.py          # Web scraping helpers (built-in + Playwright)
-│   │   ├── llm_helpers.py          # LLM prompt templates and wrappers
+│   │   ├── web_scraping.py         # Multi-stage web scraping with Puppeteer MCP (replaces mcp_client.py)
+│   │   ├── prompt_loader.py        # Jinja2 template loader with custom filters (Sprint Change 2025-10-10)
+│   │   ├── llm_helpers.py          # LLM call wrappers (uses prompt_loader for templates)
 │   │   ├── logger.py               # Structlog configuration
 │   │   ├── rate_limiter.py         # Per-domain rate limiting (Story 3.1c)
 │   │   ├── deduplication.py        # Professor deduplication logic (Story 3.1c)
 │   │   ├── confidence.py           # Confidence scoring utilities (Story 3.3)
 │   │   └── credential_manager.py   # Secure credential management
+│
+├── claude/                          # Claude SDK working directory (isolated)
+│   ├── .mcp.json                   # MCP server configuration (Puppeteer, papers, linkedin)
+│   └── .claude/
+│       └── settings.json           # SDK settings (optional)
 │   │
 │   └── schemas/                     # JSON schemas for validation
 │       ├── user-profile.schema.json
@@ -119,14 +137,22 @@ lab-finder/
 
 **3. Utilities as Shared Module:**
 - `checkpoint_manager.py` used by all agents
-- `llm_helpers.py` centralizes prompt templates
-- `mcp_client.py` wraps MCP server interactions (paper-search-mcp, mcp-linkedin)
-- `web_scraper.py` implements built-in + Playwright fallback pattern
+- `prompt_loader.py` loads Jinja2 templates from `prompts/` directory (Sprint Change 2025-10-10)
+- `llm_helpers.py` provides LLM call wrappers (uses `prompt_loader` for templates)
+- `web_scraping.py` implements multi-stage pattern (WebFetch → Sufficiency → Puppeteer MCP)
+- MCP servers configured via `claude/.mcp.json` (Puppeteer, papers, linkedin)
 
-**4. Configuration Schemas Separate from Code:**
+**4. LLM Prompt Templates Externalized:**
+- All LLM prompts stored as Jinja2 templates in `prompts/` directory (Sprint Change 2025-10-10)
+- Organized by domain: `department/`, `professor/`, `linkedin/`, `publication/`
+- Enables version-controlled prompt iteration without code changes
+- Non-developers can edit prompts; templates support inheritance and custom filters
+- Loaded via `src/utils/prompt_loader.py` with singleton pattern
+
+**5. Configuration Schemas Separate from Code:**
 - JSON schemas in `src/schemas/` directory
 - Loaded by validator at runtime for user config validation
 
-**5. Runtime Directories:**
+**6. Runtime Directories:**
 - `checkpoints/`, `output/`, `logs/` created at runtime (gitignored except .gitkeep)
 - Allows clean repository without generated files

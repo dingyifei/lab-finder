@@ -25,10 +25,11 @@ This section defines the **DEFINITIVE technology selections** for the Lab Finder
 | **SDK Mode 2** | `ClaudeSDKClient()` | SDK built-in | Multi-turn conversations with memory | NOT CURRENTLY USED: For complex iterative workflows. May be added in future phases. |
 | **Built-in Web Fetch** | WebFetch | built-in | Web page scraping | Primary web scraping; handles static HTML |
 | **Built-in Web Search** | WebSearch | built-in | Web search | Augments discovery with targeted searches |
-| **Browser Automation** | Playwright | 1.55.0 | Advanced web scraping | Required for JS-heavy sites, auth pages |
+| **Browser Automation** | Playwright | 1.55.0 | Advanced web scraping | ~~Required for JS-heavy sites~~ **Accessed via Puppeteer MCP server (@modelcontextprotocol/server-puppeteer)**. Note: Direct Playwright library usage deprecated. Use Puppeteer MCP for equivalent functionality (Chrome-only acceptable for university sites). |
 | **MCP Client** | mcp (Model Context Protocol) | 1.16.0 | MCP server communication | Connects to paper-search-mcp and mcp-linkedin servers (NFR6) |
 | **HTTP Client** | httpx | 0.28.1 | Async HTTP requests | Archive.org API, web scraping fallback; native async support |
 | **Archive.org Client** | waybackpy | 3.0.6 | Wayback Machine API wrapper | Website history snapshots (FR14); simplifies Archive.org CDX API interaction |
+| **Template Engine** | Jinja2 | 3.1.5 | LLM prompt template management | Externalizes prompt templates from code for version control, easier iteration, and non-developer editing; supports template inheritance and custom filters |
 | **Schema Validation** | jsonschema | 4.25.1 | JSON configuration validation | Validates user configs against schemas (FR1); industry standard |
 | **Configuration** | python-dotenv | 1.1.1 | Environment variable management | Credential loading; separates secrets from code (FR2-FR3) |
 | **Logging** | structlog | 25.4.0 | Structured logging framework | Correlation IDs, agent context, JSON output for multi-agent tracing (NFR17) |
@@ -88,6 +89,10 @@ This section defines the **DEFINITIVE technology selections** for the Lab Finder
 **waybackpy for Archive.org**
 - Rationale: Simplifies Wayback Machine CDX API interaction; handles snapshot queries and date parsing; complements httpx for Archive.org operations
 
+**Jinja2 for prompt template management**
+- Rationale: Externalizes 155+ lines of hardcoded LLM prompt strings to separate `.j2` files; enables version-controlled prompt iteration without code changes; supports template inheritance for reusable components; allows non-developers to edit prompts; industry-standard templating engine with extensive documentation
+- Implementation: All prompts stored in `prompts/` directory, loaded via `src/utils/prompt_loader.py` with singleton pattern; custom filters for text processing (e.g., strip_markdown)
+
 ---
 
 **CRITICAL NOTES:**
@@ -99,8 +104,14 @@ This section defines the **DEFINITIVE technology selections** for the Lab Finder
 ⚠️ **MCP Version:** Pinned to version 1.16.0 as installed in Story 1.1. Verify compatibility when configuring MCP servers (paper-search-mcp, mcp-linkedin).
 
 ⚠️ **MCP Servers Required:**
-- `paper-search-mcp` - Publication retrieval
-- `mcp-linkedin` (adhikasp-mcp-linkedin) - LinkedIn profile access
+
+| MCP Server | Package | Command | Purpose | Tools Available | Used In |
+|-----------|---------|---------|---------|----------------|---------|
+| puppeteer | @modelcontextprotocol/server-puppeteer | npx | Browser automation for JS-heavy sites | navigate, screenshot, click, fill, evaluate (JavaScript execution) | Epic 3, 4 |
+| papers | paper-search-mcp | python -m paper_search_mcp.server | Publication retrieval | search_papers, get_paper_details | Epic 5 |
+| linkedin | mcp-linkedin (adhikasp) | uvx --from git+https://github.com/adhikasp/mcp-linkedin | LinkedIn profile access | get_profile, search_profiles | Epic 6 |
+
+**Configuration:** All MCP servers configured via `claude/.mcp.json` with `{"type": "stdio", "command": "...", "args": [...]}`
 
 ⚠️ **Version Pinning Strategy:** All versions listed are exact pins (not ranges). This ensures reproducible builds critical for one-off execution tool reliability.
 
@@ -110,27 +121,71 @@ This section defines the **DEFINITIVE technology selections** for the Lab Finder
 
 ## Web Scraping Tool Selection
 
-**Decision Flow:**
+**Multi-Stage Pattern with Puppeteer MCP:**
 
-1. **Public Static Page?**
-   - YES → Use WebFetch
-   - NO → Go to 2
+1. **Stage 1: ClaudeSDKClient + WebFetch**
+   - Extract data using built-in WebFetch tool
+   - If successful, proceed to Stage 2
 
-2. **JavaScript-Heavy SPA?**
-   - YES → Use Playwright via Bash
-   - NO → Go to 3
+2. **Stage 2: Sufficiency Evaluation**
+   - Separate LLM prompt evaluates data completeness
+   - Checks all required_fields present
+   - If sufficient → Return data
+   - If insufficient → Proceed to Stage 3
 
-3. **Authentication Required?**
-   - YES → Use Playwright with session management
-   - NO → Try WebFetch, fallback to Playwright
+3. **Stage 3: ClaudeSDKClient + Puppeteer MCP**
+   - Use mcp__puppeteer__navigate and mcp__puppeteer__evaluate
+   - Execute JavaScript for data extraction
+   - Handles JS-rendered content
+   - Proceed to Stage 4
 
-4. **WebFetch Failed?**
-   - JS execution needed → Invoke Playwright
-   - Rate limited → Retry with exponential backoff
-   - Unreachable → Flag in data_quality_flags, continue pipeline
+4. **Stage 4: Re-evaluate Sufficiency**
+   - Same evaluation as Stage 2
+   - If sufficient → Return data
+   - If insufficient and attempts < 3 → Loop back to Stage 3
+   - If max attempts reached → Return partial data + missing_fields flag
+
+**Data Quality Flags:**
+- `insufficient_webfetch`: WebFetch didn't extract all required fields
+- `puppeteer_mcp_used`: Escalated to Puppeteer MCP fallback
+- `sufficiency_evaluation_failed`: Could not determine completeness
 
 **Tool Usage Examples:**
-- Static department directory → WebFetch ✓
-- React-based professor listing → Playwright ✓
-- LinkedIn profile (auth + dynamic) → Playwright ✓
-- Archive.org snapshots → WebFetch ✓
+- Static department directory → WebFetch (Stage 1) ✓
+- JS-rendered professor listing → WebFetch → Puppeteer MCP (Stages 1-3) ✓
+- LinkedIn profile → mcp-linkedin MCP server (not web scraping) ✓
+- Archive.org snapshots → WebFetch (Stage 1) ✓
+
+---
+
+## SDK Working Directory Configuration
+
+**Pattern:** Isolated `claude/` directory for SDK context
+
+**Directory Structure:**
+```
+C:\Users\yifei\Documents\Research/
+├── claude/                          # SDK working directory (isolated)
+│   ├── .mcp.json                   # MCP server configuration
+│   └── .claude/                    # SDK configuration directory
+│       └── settings.json           # SDK settings
+├── src/                            # Lab Finder application code
+│   └── ...
+```
+
+**Why Isolated:**
+- Keeps SDK configuration separate from Lab Finder codebase
+- `.mcp.json` doesn't pollute project root
+- Clear separation of concerns: `claude/` = SDK, `src/` = application
+
+**Usage in Code:**
+```python
+from claude_agent_sdk import ClaudeAgentOptions
+from pathlib import Path
+
+options = ClaudeAgentOptions(
+    cwd=Path(__file__).parent.parent / "claude",  # Points to claude/ directory
+    setting_sources=["project"],                   # Loads .mcp.json
+    allowed_tools=["mcp__puppeteer__navigate", "mcp__puppeteer__evaluate"]
+)
+```

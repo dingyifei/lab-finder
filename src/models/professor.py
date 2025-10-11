@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 # Data quality flag constants
 PROFESSOR_DATA_QUALITY_FLAGS = {
-    "scraped_with_playwright_fallback",  # WebFetch failed, used Playwright
+    "puppeteer_mcp_used",  # WebFetch failed, used Puppeteer MCP fallback
     "missing_email",  # No email address found
     "missing_research_areas",  # No research areas found in directory
     "missing_lab_affiliation",  # Lab name/URL not identified

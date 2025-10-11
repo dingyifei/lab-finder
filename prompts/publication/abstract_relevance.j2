@@ -1,0 +1,26 @@
+Rate the relevance of this paper abstract to the user's research interests.
+
+<user_research_interests>
+{{ interests }}
+</user_research_interests>
+
+<paper>
+<title>{{ title }}</title>
+<abstract>{{ abstract }}</abstract>
+</paper>
+
+<scoring_guide>
+0-20: Not relevant
+21-40: Tangentially related
+41-60: Moderately relevant
+61-80: Highly relevant
+81-100: Directly aligned
+</scoring_guide>
+
+<task>
+Analyze how well the paper's content aligns with the user's research interests.
+Provide a relevance score (0-100) and brief reasoning.
+</task>
+
+Return ONLY valid JSON (no markdown code blocks):
+{"relevance": 0-100, "reasoning": "brief explanation"}

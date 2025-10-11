@@ -1,0 +1,38 @@
+Evaluate how well this professor's research aligns with the user's interests.
+
+<user_profile>
+{{ profile }}
+</user_profile>
+
+<professor>
+<name>{{ name }}</name>
+<research_areas>{{ research_areas }}</research_areas>
+<bio>{{ bio }}</bio>
+</professor>
+
+<task>
+Provide:
+1. Confidence score (0-100) indicating research alignment
+2. Detailed reasoning explaining the score
+3. Key factors listing specific matching elements
+
+Confidence score should reflect:
+- Strength of research overlap (strong/moderate/weak)
+- Number of matching research areas
+- Specificity of match (direct vs. tangential)
+- Certainty in interpretation
+
+Include "key_factors" listing specific matching elements from the professor's research.
+Include "confidence_explanation" explaining why this confidence level was assigned.
+</task>
+
+<scoring_guide>
+0-20: No overlap
+21-40: Minimal overlap
+41-60: Moderate overlap
+61-80: Strong overlap
+81-100: Excellent match
+</scoring_guide>
+
+Return ONLY valid JSON (no markdown code blocks):
+{"confidence": 0-100, "reasoning": "brief explanation", "key_factors": ["factor1", "factor2", ...], "confidence_explanation": "explanation of confidence level"}

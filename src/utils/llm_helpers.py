@@ -40,6 +40,8 @@ from tenacity import (
 )
 from typing import Any, Optional, cast
 
+from src.utils.prompt_loader import render_prompt
+
 # Initialize logger
 logger = structlog.get_logger(__name__)
 
@@ -65,166 +67,6 @@ def _extract_json_from_markdown(response_text: str) -> str:
         json_text = json_text[:-3]  # Remove trailing ```
 
     return json_text.strip()
-
-
-# Prompt Templates
-
-DEPARTMENT_RELEVANCE_TEMPLATE = """Analyze whether this department is relevant to the user's research profile.
-
-<user_profile>
-<research_interests>{interests}</research_interests>
-<degree>{degree}</degree>
-<background>{background}</background>
-</user_profile>
-
-<department>
-<name>{department_name}</name>
-<school>{school}</school>
-</department>
-
-<guidelines>
-- Include if ANY potential research overlap exists
-- Include interdisciplinary departments
-- Exclude only obviously unrelated departments
-</guidelines>
-
-<examples>
-Example 1:
-User: Machine learning, AI
-Department: Computer Science (School of Engineering)
-Output: {{"decision": "include", "confidence": 95, "reasoning": "Direct match - CS department covers ML and AI research"}}
-
-Example 2:
-User: Machine learning, AI
-Department: English Literature (School of Humanities)
-Output: {{"decision": "exclude", "confidence": 90, "reasoning": "No overlap between computational research and literary studies"}}
-
-Example 3:
-User: Machine learning, AI
-Department: Computational Biology (School of Medicine)
-Output: {{"decision": "include", "confidence": 75, "reasoning": "Interdisciplinary overlap - computational methods apply to biology"}}
-</examples>
-
-Return ONLY valid JSON in this exact format (no markdown code blocks, no additional text):
-{{"decision": "include" or "exclude", "confidence": 0-100, "reasoning": "brief explanation"}}
-"""
-
-PROFESSOR_FILTER_TEMPLATE = """Evaluate how well this professor's research aligns with the user's interests.
-
-<user_profile>
-{profile}
-</user_profile>
-
-<professor>
-<name>{name}</name>
-<research_areas>{research_areas}</research_areas>
-<bio>{bio}</bio>
-</professor>
-
-<task>
-Provide:
-1. Confidence score (0-100) indicating research alignment
-2. Detailed reasoning explaining the score
-3. Key factors listing specific matching elements
-
-Confidence score should reflect:
-- Strength of research overlap (strong/moderate/weak)
-- Number of matching research areas
-- Specificity of match (direct vs. tangential)
-- Certainty in interpretation
-
-Include "key_factors" listing specific matching elements from the professor's research.
-Include "confidence_explanation" explaining why this confidence level was assigned.
-</task>
-
-<scoring_guide>
-0-20: No overlap
-21-40: Minimal overlap
-41-60: Moderate overlap
-61-80: Strong overlap
-81-100: Excellent match
-</scoring_guide>
-
-Return ONLY valid JSON (no markdown code blocks):
-{{"confidence": 0-100, "reasoning": "brief explanation", "key_factors": ["factor1", "factor2", ...], "confidence_explanation": "explanation of confidence level"}}
-"""
-
-LINKEDIN_MATCH_TEMPLATE = """Determine if this LinkedIn profile matches the lab member.
-
-<lab_member>
-<name>{member_name}</name>
-<university>{university}</university>
-<lab>{lab_name}</lab>
-</lab_member>
-
-<linkedin_profile>
-{profile_data}
-</linkedin_profile>
-
-<task>
-Determine if these refer to the same person by analyzing:
-1. Name similarity
-2. University/institution match
-3. Department/lab affiliation
-4. Research areas or job titles
-
-Provide confidence score (0-100) and reasoning.
-</task>
-
-Return ONLY valid JSON (no markdown code blocks):
-{{"confidence": 0-100, "reasoning": "brief explanation"}}
-"""
-
-NAME_MATCH_TEMPLATE = """Determine if these two names refer to the same person.
-
-<names>
-<name1>{name1}</name1>
-<name2>{name2}</name2>
-</names>
-
-<context>
-{context}
-</context>
-
-<guidelines>
-Consider:
-- Name variations (nicknames, middle names, initials)
-- Cultural naming conventions
-- Academic naming patterns (Dr., Prof., etc.)
-- Common name spelling variations
-</guidelines>
-
-Return ONLY valid JSON (no markdown code blocks):
-{{"decision": "yes" or "no", "confidence": 0-100, "reasoning": "brief explanation"}}
-"""
-
-ABSTRACT_RELEVANCE_TEMPLATE = """Rate the relevance of this paper abstract to the user's research interests.
-
-<user_research_interests>
-{interests}
-</user_research_interests>
-
-<paper>
-<title>{title}</title>
-<abstract>{abstract}</abstract>
-</paper>
-
-<scoring_guide>
-0-20: Not relevant
-21-40: Tangentially related
-41-60: Moderately relevant
-61-80: Highly relevant
-81-100: Directly aligned
-</scoring_guide>
-
-<task>
-Analyze how well the paper's content aligns with the user's research interests.
-Provide a relevance score (0-100) and brief reasoning.
-</task>
-
-Return ONLY valid JSON (no markdown code blocks):
-{{"relevance": 0-100, "reasoning": "brief explanation"}}
-"""
 
 
 @retry(
@@ -321,7 +163,9 @@ async def analyze_department_relevance(
     Returns:
         Dict with 'decision' ('include'/'exclude'), 'confidence' (0-100), and 'reasoning' (str)
     """
-    prompt = DEPARTMENT_RELEVANCE_TEMPLATE.format(
+    prompt = render_prompt(
+        "department/relevance_filter.j2",
+        correlation_id=correlation_id,
         interests=research_interests,
         degree=degree,
         background=background,
@@ -386,7 +230,9 @@ async def filter_professor_research(
     Returns:
         Dict with 'confidence' (0-100) and 'reasoning' (str)
     """
-    prompt = PROFESSOR_FILTER_TEMPLATE.format(
+    prompt = render_prompt(
+        "professor/research_filter.j2",
+        correlation_id=correlation_id,
         profile=user_profile,
         name=professor_name,
         research_areas=research_areas,
@@ -442,7 +288,9 @@ async def match_linkedin_profile(
     Returns:
         Dict with 'confidence' (0-100) and 'reasoning' (str)
     """
-    prompt = LINKEDIN_MATCH_TEMPLATE.format(
+    prompt = render_prompt(
+        "linkedin/profile_match.j2",
+        correlation_id=correlation_id,
         member_name=member_name,
         university=university,
         lab_name=lab_name,
@@ -493,8 +341,12 @@ async def match_names(
     Returns:
         Dict with 'decision' (yes/no), 'confidence' (0-100), and 'reasoning' (str)
     """
-    prompt = NAME_MATCH_TEMPLATE.format(
-        name1=name1, name2=name2, context=context or "No additional context"
+    prompt = render_prompt(
+        "professor/name_match.j2",
+        correlation_id=correlation_id,
+        name1=name1,
+        name2=name2,
+        context=context or "No additional context",
     )
 
     response = await call_llm_with_retry(prompt, correlation_id=correlation_id)
@@ -552,8 +404,12 @@ async def score_abstract_relevance(
     Returns:
         Dict with 'relevance' (0-100) and 'reasoning' (str)
     """
-    prompt = ABSTRACT_RELEVANCE_TEMPLATE.format(
-        interests=research_interests, abstract=abstract, title=paper_title
+    prompt = render_prompt(
+        "publication/abstract_relevance.j2",
+        correlation_id=correlation_id,
+        interests=research_interests,
+        abstract=abstract,
+        title=paper_title,
     )
 
     response = await call_llm_with_retry(prompt, correlation_id=correlation_id)

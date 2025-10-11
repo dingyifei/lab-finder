@@ -199,21 +199,25 @@ async def discover_professors_parallel(departments: list[Department], max_concur
 **Single Department Discovery:**
 ```python
 async def discover_professors_for_department(department: Department) -> list[Professor]:
-    """Use Claude SDK WebFetch to scrape professor directory."""
-    options = ClaudeAgentOptions(
-        allowed_tools=["WebFetch", "WebSearch"],
-        max_turns=3
+    """Use multi-stage scraping pattern with Puppeteer MCP fallback (Pattern 7).
+
+    See src/utils/web_scraping.py for full implementation.
+    """
+    from src.utils.web_scraping import scrape_with_sufficiency
+
+    # Multi-stage pattern: WebFetch → Sufficiency → Puppeteer MCP → Re-evaluate
+    result = await scrape_with_sufficiency(
+        url=department.url,
+        required_fields=["name", "title", "research_areas", "email", "lab_url"],
+        max_attempts=3,
+        correlation_id=get_correlation_id()
     )
 
-    prompt = f"Scrape {department.url} and extract all professor information..."
+    if not result["sufficient"]:
+        # Add data quality flags for missing fields
+        logger.warning("Incomplete scraping", missing=result["missing_fields"])
 
-    try:
-        async for message in query(prompt=prompt, options=options):
-            # Parse professor data
-            pass
-    except Exception:
-        # Fallback to Playwright
-        return await discover_with_playwright_fallback(department)
+    return convert_to_professor_models(result["data"], department)
 ```
 
 **Filtering (Story 3.2 - module-level functions):**
@@ -246,38 +250,53 @@ async def filter_professors(correlation_id: str) -> list[Professor]:
 
 ## Phase 3: Lab Website Intelligence
 
-**Responsibility:** Scrape lab websites, check Archive.org history
+**Responsibility:** Scrape lab websites, extract 5 data categories, check Archive.org history
 
 **Implementation:** Python module `src/agents/lab_intelligence.py`
+
+**Data Extraction:** 5 categories (lab_information, contact, people, research_focus, publications)
+
+**Multi-Stage Pattern:** Uses sufficiency evaluation between WebFetch and Puppeteer MCP stages
 
 **Claude SDK Usage:**
 ```python
 async def scrape_lab_website(lab_url: str) -> LabWebsiteData:
-    """Scrape lab website with WebFetch primary, Playwright fallback."""
-    options = ClaudeAgentOptions(
-        allowed_tools=["WebFetch"],
-        max_turns=2
+    """Scrape lab website using multi-stage pattern with sufficiency evaluation."""
+    from src.utils.web_scraping import scrape_with_sufficiency
+
+    # Multi-stage pattern: WebFetch → Sufficiency → Puppeteer MCP → Re-evaluate
+    result = await scrape_with_sufficiency(
+        url=lab_url,
+        required_fields=[
+            "lab_information",  # Description, mission
+            "contact",          # Email, phone, contact form URL
+            "people",           # Lab members, roles
+            "research_focus",   # Research areas, projects
+            "publications"      # Recent publications, links
+        ],
+        max_attempts=3,
+        correlation_id=get_correlation_id()
     )
 
-    prompt = f"""
-    Scrape {lab_url} and extract:
-    - Lab description
-    - Lab members (names, roles)
-    - Contact information
-    - Last update indicators
-    """
+    if not result["sufficient"]:
+        # Add data quality flags for missing categories
+        logger.warning("Incomplete lab data", missing=result["missing_fields"])
+        for field in result["missing_fields"]:
+            lab.data_quality_flags.append(f"missing_{field}")
 
-    try:
-        async for message in query(prompt=prompt, options=options):
-            # Extract lab data
-            pass
-    except Exception:
-        # Playwright fallback
-        return await scrape_with_playwright(lab_url)
-
-    # Archive.org check via httpx (not Claude SDK)
+    # Archive.org check via waybackpy (not Claude SDK)
     wayback_history = await check_archive_org(lab_url)
+
+    return convert_to_lab_model(result["data"], wayback_history)
 ```
+
+**Data Quality Flags:**
+- `insufficient_webfetch`: WebFetch didn't extract all 5 categories
+- `puppeteer_mcp_used`: Escalated to Puppeteer MCP fallback
+- `sufficiency_evaluation_failed`: Could not determine completeness
+- `missing_lab_information`, `missing_contact`, `missing_people`, `missing_research_focus`, `missing_publications`: Specific missing categories
+
+**Reference:** `src/utils/web_scraping.py` utility for multi-stage pattern
 
 ---
 

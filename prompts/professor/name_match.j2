@@ -1,0 +1,21 @@
+Determine if these two names refer to the same person.
+
+<names>
+<name1>{{ name1 }}</name1>
+<name2>{{ name2 }}</name2>
+</names>
+
+<context>
+{{ context }}
+</context>
+
+<guidelines>
+Consider:
+- Name variations (nicknames, middle names, initials)
+- Cultural naming conventions
+- Academic naming patterns (Dr., Prof., etc.)
+- Common name spelling variations
+</guidelines>
+
+Return ONLY valid JSON (no markdown code blocks):
+{"decision": "yes" or "no", "confidence": 0-100, "reasoning": "brief explanation"}

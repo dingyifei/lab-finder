@@ -1,0 +1,38 @@
+Analyze whether this department is relevant to the user's research profile.
+
+<user_profile>
+<research_interests>{{ interests }}</research_interests>
+<degree>{{ degree }}</degree>
+<background>{{ background }}</background>
+</user_profile>
+
+<department>
+<name>{{ department_name }}</name>
+<school>{{ school }}</school>
+</department>
+
+<guidelines>
+- Include if ANY potential research overlap exists
+- Include interdisciplinary departments
+- Exclude only obviously unrelated departments
+</guidelines>
+
+<examples>
+Example 1:
+User: Machine learning, AI
+Department: Computer Science (School of Engineering)
+Output: {"decision": "include", "confidence": 95, "reasoning": "Direct match - CS department covers ML and AI research"}
+
+Example 2:
+User: Machine learning, AI
+Department: English Literature (School of Humanities)
+Output: {"decision": "exclude", "confidence": 90, "reasoning": "No overlap between computational research and literary studies"}
+
+Example 3:
+User: Machine learning, AI
+Department: Computational Biology (School of Medicine)
+Output: {"decision": "include", "confidence": 75, "reasoning": "Interdisciplinary overlap - computational methods apply to biology"}
+</examples>
+
+Return ONLY valid JSON in this exact format (no markdown code blocks, no additional text):
+{"decision": "include" or "exclude", "confidence": 0-100, "reasoning": "brief explanation"}

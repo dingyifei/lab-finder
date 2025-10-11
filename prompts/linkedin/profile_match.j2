@@ -1,0 +1,24 @@
+Determine if this LinkedIn profile matches the lab member.
+
+<lab_member>
+<name>{{ member_name }}</name>
+<university>{{ university }}</university>
+<lab>{{ lab_name }}</lab>
+</lab_member>
+
+<linkedin_profile>
+{{ profile_data }}
+</linkedin_profile>
+
+<task>
+Determine if these refer to the same person by analyzing:
+1. Name similarity
+2. University/institution match
+3. Department/lab affiliation
+4. Research areas or job titles
+
+Provide confidence score (0-100) and reasoning.
+</task>
+
+Return ONLY valid JSON (no markdown code blocks):
+{"confidence": 0-100, "reasoning": "brief explanation"}
