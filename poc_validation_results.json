@@ -1,7 +1,7 @@
 {
   "test_department": {
-    "name": "Computer Science",
-    "url": "https://cs.stanford.edu/directory/faculty"
+    "name": "Test Department",
+    "url": "https://example.com"
   },
   "old_pattern": {
     "count": 0,

@@ -22,33 +22,62 @@ Validate agentic pattern with professor_discovery.py before committing to full r
 
 ## 📝 Day 1 Summary (2025-10-11)
 
-**Status:** ✅ COMPLETE - Ready for testing
+**Status:** 🔬 DEBUGGING IN PROGRESS - Significant breakthroughs, one remaining blocker
 
 **Completed:**
 1. ✅ Created `PHASE-1-POC-HANDOFF.md` (this document) for continuity
 2. ✅ Analyzed current `professor_discovery.py` implementation (lines 160-431)
-3. ✅ Created `src/utils/agentic_patterns.py` with core functions
+3. ✅ Created `src/utils/agentic_patterns.py` with core agentic functions
 4. ✅ Implemented `discover_professors_for_department_agentic_poc()` in `professor_discovery.py`
-5. ✅ Created `test_poc_agentic_discovery.py` for validation
-6. ✅ All files pass ruff linting checks
+5. ✅ Upgraded SDK from 0.1.1 → 0.1.3 (fixed initialization bug)
+6. ✅ Created minimal SDK tests - ALL PASS
+7. ✅ Verified `agentic_discovery_with_tools()` works correctly in isolation
+8. ✅ Verified multi-turn conversations work
+9. ✅ All files pass ruff linting checks
 
-**Ready for Day 2:**
-- POC implementation ready to test
-- Test script compares old vs agentic pattern
-- Conversation logging enabled for analysis
-- Handoff document comprehensive for next dev
+**Major Breakthroughs:**
+- ✅ SDK 0.1.3 works perfectly (all 3 minimal tests pass)
+- ✅ `agentic_discovery_with_tools()` function works (tested directly - SUCCESS in 28s)
+- ✅ Multi-turn conversations work (tested with 2 turns, format reinforcement - SUCCESS)
+- ✅ Multi-turn with tools (WebFetch) works
 
-**Next Steps:**
-1. Run `python test_poc_agentic_discovery.py`
-2. Review conversation logs in `logs/lab-finder.log`
-3. Analyze `poc_validation_results.json`
-4. Document findings in this file
-5. If successful, proceed to Day 2-3 (sub-agent spawning)
+**Remaining Issue:**
+- ❌ Timeout ONLY when calling through `discover_professors_for_department_agentic_poc()`
+- ✅ Direct call to `agentic_discovery_with_tools()` works
+- ❌ Calling via professor discovery function times out after 64s
+- **Hypothesis:** Something about importing or initializing `src.agents.professor_discovery` module
+
+**What's NOT Causing It:**
+- ❌ SDK version (0.1.3 works)
+- ❌ Logger setup (tested - still works)
+- ❌ anyio vs asyncio (tested - same issue)
+- ❌ Prompt length (tested short prompts - still times out)
+- ❌ cwd parameter (removed it, still works in direct test)
+- ❌ setting_sources (removed it, still works in direct test)
+
+**Tests Created:**
+- `test_minimal_sdk.py` - Validates SDK 0.1.3 works ✅
+- `test_multi_turn_minimal.py` - Validates multi-turn works ✅
+- `test_agentic_function_directly.py` - Validates agentic function works ✅
+- `test_agentic_only.py` - Shows timeout when calling through professor_discovery ❌
+- `test_poc_agentic_discovery.py` - Full POC test (awaiting fix)
+
+**Next Steps for Next Dev:**
+1. **Debug module import issue:** Something about importing `src.agents.professor_discovery` causes timeout
+2. **Check for:** Module-level initialization, circular imports, conflicting SDK instances
+3. **Try:** Copy function code to standalone test without importing module
+4. **User Request:** Convert inline prompts to Jinja2 templates (per CLAUDE.md rule #19)
+5. Once timeout resolved, run full POC validation
 
 **Files Modified:**
 - `src/agents/professor_discovery.py` - Added POC function (lines 486-658)
-- `src/utils/agentic_patterns.py` - New file (core patterns)
-- `test_poc_agentic_discovery.py` - New file (POC test)
+- `src/utils/agentic_patterns.py` - New file (core agentic patterns)
+- `requirements.in` / `requirements.txt` - Upgraded SDK to 0.1.3
+- `test_minimal_sdk.py` - New (validates SDK)
+- `test_multi_turn_minimal.py` - New (validates multi-turn)
+- `test_agentic_function_directly.py` - New (validates function)
+- `test_agentic_only.py` - New (shows timeout issue)
+- `test_poc_agentic_discovery.py` - POC test
 - `PHASE-1-POC-HANDOFF.md` - This handoff document
 
 ---

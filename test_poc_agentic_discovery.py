@@ -19,12 +19,13 @@ from src.agents.professor_discovery import (
 async def run_poc_comparison():
     """Run POC comparison between old and new patterns."""
 
-    # Test department - Stanford CS
+    # Test department - Use simple example.com for testing
+    # Stanford CS URL might be timing out or blocking requests
     test_department = Department(
-        id="stanford-cs-test",
-        name="Computer Science",
-        school="School of Engineering",
-        url="https://cs.stanford.edu/directory/faculty",
+        id="test-simple",
+        name="Test Department",
+        school="Test School",
+        url="https://example.com",  # Simple test URL
         is_relevant=True,
         relevance_reasoning="Test department for POC",
         data_quality_flags=[],

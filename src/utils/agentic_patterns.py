@@ -14,7 +14,6 @@ This module provides core patterns for agentic discovery:
 
 import json
 import re
-from pathlib import Path
 from typing import Any, Optional
 
 from claude_agent_sdk import (
@@ -96,15 +95,12 @@ async def agentic_discovery_with_tools(
     )
 
     # Configure SDK for agentic mode
-    # CRITICAL: Set cwd to claude/ directory for SDK context
-    claude_dir = Path(__file__).parent.parent.parent / "claude"
-
+    # Based on SDK examples: Keep it simple for built-in tools
     options = ClaudeAgentOptions(
         allowed_tools=allowed_tools,
         max_turns=max_turns,
         system_prompt=system_prompt,
-        cwd=claude_dir,  # SDK working directory
-        setting_sources=None,  # Isolated context (no MCP for built-in tools)
+        # NOT setting cwd or setting_sources - let SDK use defaults
     )
 
     turns_used = 0
@@ -248,14 +244,11 @@ async def spawn_sub_agent(
         # Example: task = Task(description=task_description, prompt=prompt, ...)
 
         # TEMPORARY: Direct implementation until Task tool pattern validated
-        claude_dir = Path(__file__).parent.parent.parent / "claude"
-
+        # Keep it simple - let SDK use defaults
         options = ClaudeAgentOptions(
             allowed_tools=allowed_tools,
             max_turns=2,
             system_prompt="You are a specialized data extraction assistant.",
-            cwd=claude_dir,
-            setting_sources=None,
         )
 
         result_data = {}
