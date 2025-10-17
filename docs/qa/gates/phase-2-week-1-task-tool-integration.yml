@@ -1,0 +1,350 @@
+---
+gate_id: phase-2-week-1-task-tool-integration
+component: Epic 3 - Professor Discovery
+date: 2025-10-16
+reviewer: Quinn (Test Architect)
+status: CONCERNS
+confidence: HIGH
+
+# Gate Decision: CONCERNS (Advisory Review)
+# Proceed with caution - functional testing mandatory before Week 2
+
+---
+
+## Executive Summary
+
+**Status:** Core implementation complete but **UNTESTED functionally**
+
+**Quality Score:** 78/100
+- Implementation: 95/100 (excellent code quality)
+- Testing: 0/100 (no functional validation)
+- Risk Management: 85/100 (good planning, poor execution)
+
+**Gate Decision:** **CONCERNS** - Implementation quality is excellent, but proceeding to Week 2 without functional validation creates unacceptable risk.
+
+**Critical Gap:** Phase 1 validated Task tool extracts 115 professors from UCSD. Phase 2 implemented Task tool integration BUT never validated this claim works in production code.
+
+---
+
+## Progress Assessment
+
+### Completed (Days 1-3)
+
+**Implementation ✅**
+- discover_professors_task_tool() function (170 lines, lines 431-598)
+- Updated discover_professors_parallel() to use Task tool
+- Code quality verified (ruff ✅, mypy ✅)
+- Generated claude/agents/*.md files from templates
+- Comprehensive Phase 2 handoff document
+
+**Code Quality Metrics:**
+- Linting: PASS (ruff)
+- Type checking: PASS (mypy)
+- Retry logic: PRESENT (exponential backoff)
+- Error handling: ROBUST (graceful degradation)
+- Logging: COMPREHENSIVE (correlation IDs, structured logging)
+- Data quality flags: MAINTAINED (task_tool_used flag added)
+
+### Not Completed (Critical Gaps)
+
+**Functional Testing ❌**
+- Simple site validation - NOT DONE
+- Complex site benchmark (UCSD 115 professors) - NOT DONE
+- Integration tests - NOT UPDATED
+- Performance measurement - NOT DONE
+- Accuracy comparison (old vs Task tool) - NOT DONE
+
+**Impact:** Zero confidence that implementation actually works as designed
+
+---
+
+## Requirements Traceability
+
+### Phase 2 Week 1 Success Criteria
+
+| Criterion | Status | Evidence |
+|-----------|--------|----------|
+| Replace discover_professors_for_department() with Task tool | ✅ PASS | Lines 680-682 updated |
+| Use prompts/agents/web_scraper.j2 template | ✅ PASS | Agent files generated |
+| Preserve parallel execution | ✅ PASS | asyncio.gather maintained |
+| Maintain rate limiting | ✅ PASS | DomainRateLimiter intact |
+| Validate on simple site | ❌ **FAIL** | NOT TESTED |
+| Validate on complex site | ❌ **FAIL** | NOT TESTED |
+| Data quality equal/better | ⏳ UNKNOWN | Cannot verify without testing |
+| Performance within 180s | ⏳ UNKNOWN | Not measured |
+
+**Requirements Met:** 4/8 (50%)
+
+**Critical Missing:** Functional validation (AC 5, 6) is **mandatory** per Sprint Change Proposal Phase 2 scope
+
+---
+
+## Risk Assessment
+
+### HIGH RISKS (Probability × Impact)
+
+**Risk 1: Task tool integration doesn't work (MEDIUM × HIGH = HIGH)**
+- **Probability:** MEDIUM - Implementation looks correct but untested
+- **Impact:** HIGH - Would block entire Phase 2 timeline
+- **Mitigation:** Run UCSD benchmark test IMMEDIATELY
+- **Current Status:** UNMITIGATED
+
+**Risk 2: Performance regression (LOW × MEDIUM = MEDIUM)**
+- **Probability:** LOW - Phase 1 validated 180s acceptable
+- **Impact:** MEDIUM - Could require optimization work
+- **Mitigation:** Measure actual performance vs 180s benchmark
+- **Current Status:** UNMITIGATED
+
+**Risk 3: Data quality regression (LOW × HIGH = MEDIUM)**
+- **Probability:** LOW - Code preserves all data quality flags
+- **Impact:** HIGH - Would undermine accuracy goals
+- **Mitigation:** Compare old vs new output quality
+- **Current Status:** PARTIAL (flags maintained in code, not validated)
+
+### Technical Debt Assessment
+
+**New Debt Introduced:** LOW
+- No shortcuts taken
+- Proper abstractions maintained
+- Documentation comprehensive
+
+**Debt Paydown:** NEUTRAL
+- Replaced zero-shot with Task tool (architectural improvement)
+- Maintained old implementation as fallback (good)
+
+---
+
+## Code Quality Deep Dive
+
+### discover_professors_task_tool() Analysis
+
+**Strengths:**
+1. **Retry logic** - @retry decorator with exponential backoff (3 attempts)
+2. **Timeout handling** - 180s timeout based on Phase 1 benchmark
+3. **Robust parsing** - Handles both list and dict response formats
+4. **Graceful degradation** - Returns empty list on failure (no crash)
+5. **No fallback** - Simpler code path (Task tool is default)
+6. **Data quality** - Adds task_tool_used flag, preserves existing flags
+
+**Architecture Decision Validation:**
+- ✅ Uses spawn_sub_agent() (correct pattern)
+- ✅ Template-based (prompts/agents/web_scraper.j2)
+- ✅ No Python orchestration (Task tool handles multi-turn)
+- ✅ Consistent with Phase 1 findings
+
+**Code Review:** PASS (95/100)
+
+### discover_professors_parallel() Integration
+
+**Change Analysis:**
+```python
+# Line 680 - Single line change
+professors = await discover_professors_task_tool(dept, correlation_id)
+```
+
+**Validation:**
+- ✅ Preserved: asyncio.gather, Semaphore, rate limiting, progress tracking
+- ✅ Minimal change principle followed
+- ✅ Error handling intact
+- ✅ Correlation ID propagation maintained
+
+**Integration Quality:** PASS (100/100)
+
+---
+
+## Test Strategy Gap Analysis
+
+### Required Tests (Per Sprint Change Proposal Phase 3)
+
+**Unit Tests (NOT STARTED):**
+- [ ] Mock Task tool responses
+- [ ] Test template rendering
+- [ ] Test error handling (timeouts, failures)
+- [ ] Test JSON parsing (list/dict formats)
+- [ ] Edge cases (empty results, malformed JSON)
+
+**Integration Tests (NOT STARTED):**
+- [ ] End-to-end discovery with Task tool
+- [ ] Simple site validation
+- [ ] Complex site validation (UCSD 115 professors)
+- [ ] Parallel execution with Task tool
+- [ ] Rate limiting with Task tool
+
+**Performance Tests (NOT STARTED):**
+- [ ] Execution time measurement
+- [ ] Comparison: old vs Task tool
+- [ ] 180s timeout validation
+- [ ] Token usage tracking
+
+**Impact:** Zero test coverage for Task tool integration
+
+---
+
+## Phase 1 vs Phase 2 Validation Gap
+
+### Phase 1 Findings (Validated)
+- Custom POC: 0 professors from UCSD (failed)
+- Task tool: 115 professors from UCSD (success)
+- **Strategic Decision:** Use Task tool as default
+
+### Phase 2 Implementation (Unvalidated)
+- discover_professors_task_tool() implemented ✅
+- discover_professors_parallel() updated ✅
+- **BUT:** Never tested on UCSD to confirm 115 professors extracted ❌
+
+**Critical Question:** Does spawn_sub_agent() with web-scraper agent actually replicate Phase 1 Task tool success?
+
+**Answer:** UNKNOWN - Not tested
+
+**Recommendation:** Run UCSD test BEFORE proceeding to Week 2
+
+---
+
+## Recommendations
+
+### MUST-FIX (Blocking Issues)
+
+**1. Functional Validation (Priority: CRITICAL)**
+- Run simple site test (example.com or similar)
+- Run UCSD benchmark test (expect 115 professors)
+- Measure execution time (validate 180s is sufficient)
+- Compare data quality (old vs Task tool output)
+
+**Action:** Create and execute validation test script
+**Owner:** Dev team
+**Timeline:** Complete before Week 2 (University Discovery)
+
+**2. Document Test Results (Priority: HIGH)**
+- Update Phase 2 handoff with test outcomes
+- Create validation report (similar to Phase 1)
+- Document any deviations from Phase 1 findings
+
+**Action:** Write validation findings document
+**Owner:** Dev team
+**Timeline:** After test execution
+
+### SHOULD-FIX (Advisory)
+
+**3. Integration Test Updates (Priority: MEDIUM)**
+- Update existing professor discovery integration tests
+- Add Task tool-specific test cases
+- Mock spawn_sub_agent() responses
+
+**Action:** Update tests/integration/test_professor_discovery.py
+**Owner:** Dev team
+**Timeline:** Before Phase 3 (Testing & Validation)
+
+**4. Performance Baseline (Priority: MEDIUM)**
+- Establish baseline metrics (old implementation)
+- Measure Task tool performance
+- Document comparison
+
+**Action:** Create performance comparison report
+**Owner:** Dev team
+**Timeline:** Before Phase 3
+
+### NICE-TO-HAVE (Non-blocking)
+
+**5. Error Scenario Testing**
+- Test timeout handling
+- Test malformed responses
+- Test network failures
+
+**Timeline:** Phase 3 (Testing & Validation)
+
+---
+
+## Gate Decision Rationale
+
+**Why CONCERNS (not FAIL):**
+1. Implementation quality is excellent (95/100)
+2. Code follows validated Phase 1 patterns
+3. Architecture decisions are sound
+4. No technical debt introduced
+
+**Why not PASS:**
+1. Zero functional validation (unacceptable)
+2. Phase 1 benchmark (115 professors) not replicated
+3. Cannot proceed to Week 2 with untested code
+4. Risk of discovering fundamental issues late
+
+**Advisory Nature:**
+- Team chooses their quality bar
+- This review highlights must-fix vs nice-to-have
+- Proceeding without testing is high-risk but not blocked
+
+---
+
+## Next Steps (Actionable)
+
+**Immediate (Before Week 2):**
+1. Create validation test script (2-4 hours)
+2. Run simple site test (30 min)
+3. Run UCSD benchmark test (5 min execution)
+4. Document results (1-2 hours)
+5. Update Phase 2 handoff (30 min)
+
+**Short-term (Week 2):**
+6. Update integration tests
+7. Measure performance baseline
+8. Compare old vs new data quality
+
+**Medium-term (Phase 3):**
+9. Comprehensive test suite updates
+10. Performance benchmarking
+11. QA validation against original Epic 3 AC
+
+---
+
+## Quality Attributes Validation
+
+### Testability: GOOD
+- spawn_sub_agent() can be mocked
+- Functions have clear contracts
+- Error paths observable via logging
+
+### Observability: EXCELLENT
+- Structured logging with correlation IDs
+- Progress tracking maintained
+- Data quality flags comprehensive
+
+### Debuggability: GOOD
+- Retry logic visible in logs
+- Error messages descriptive
+- Timeout handling clear
+
+### Reliability: UNKNOWN
+- Cannot assess without functional testing
+- Retry logic suggests good design
+- Graceful degradation implemented
+
+---
+
+## Historical Context
+
+**Phase 1 POC (95/100 QA Score):**
+- Thorough validation (7 QA documents)
+- Functional testing on multiple sites
+- Performance measurement
+- Strategic decision backed by data
+
+**Phase 2 Week 1 (78/100 QA Score):**
+- Implementation quality matches Phase 1
+- **But:** Skipped validation step
+- **Risk:** Assuming implementation works without proof
+
+**Lesson:** Don't skip validation even with high-quality implementation
+
+---
+
+## Sign-Off
+
+**Reviewer:** Quinn (Test Architect & Quality Advisor)
+**Date:** 2025-10-16
+**Status:** CONCERNS (Advisory)
+
+**Summary:** Proceed with functional validation before Week 2. Implementation quality is excellent, but zero testing creates unacceptable risk. Run UCSD benchmark to validate Phase 1 findings before expanding to University and Lab discovery.
+
+**Confidence:** HIGH - Assessment based on comprehensive code review and Phase 2 documentation analysis
+
+---
